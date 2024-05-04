@@ -1,4 +1,4 @@
-=== Wp Ai Image Gen ===
+=== WP AI Image Gen ===
 Contributors:      Jacob Schweitzer
 Tags:              block
 Tested up to:      6.1
