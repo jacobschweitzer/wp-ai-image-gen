@@ -1,12 +1,14 @@
 # WP AI Image Gen
-### Easy way to generate and insert AI images into your posts using OpenAI and DALL-E 3.
+### Easy way to generate and insert AI images into your WordPress posts using OpenAI and DALL-E 3.
 
 ## Description
-Includes a Gutenberg block to insert a prompt that generates an image and inserts an image block into the current post.
+Includes a WordPress Gutenberg block with a prompt box that generates an image and inserts an image block into the post.
 
 ## Installation
-1. Activate the plugin
-2. Add your OpenAI API key in Settings -> WP AI Image Gen
+1. [Download the plugin](https://github.com/jacobschweitzer/wp-ai-image-gen/archive/refs/heads/main.zip).
+2. Upload and activate the plugin to your site.
+3. Get a new [OpenAI API key](https://platform.openai.com/api-keys)
+4. Add your OpenAI API key in Settings -> WP AI Image Gen in the WordPress admin.
 
 ## How To Gen
 1. Edit a post
@@ -16,4 +18,4 @@ Includes a Gutenberg block to insert a prompt that generates an image and insert
 5. View/Edit the inserted core image block
 
 ## Screenshots
-![Screenshot](https://github.com/jacobschweitzer/wp-ai-image-gen/blob/main/assets/screenshot.png)
+![Screenshot of the promt box and a generated image](https://github.com/jacobschweitzer/wp-ai-image-gen/blob/main/assets/screenshot.png)
