@@ -45,3 +45,25 @@ function create_block_wp_ai_image_gen_block_init() {
 	register_block_type( __DIR__ . '/build' );
 }
 add_action( 'init', 'create_block_wp_ai_image_gen_block_init' );
+
+/**
+ * Logs an error message if debug logging is enabled.
+ *
+ * @param string $message The error message to log.
+ */
+function wp_ai_image_gen_log_error( $message ) {
+	if ( WP_AI_IMAGE_GEN_DEBUG_LOG ) {
+		error_log( $message );
+	}
+}
+
+/**
+ * Logs a debug message if debug logging is enabled.
+ *
+ * @param string $message The debug message to log.
+ */
+function wp_ai_image_gen_log_debug( $message ) {
+	if ( WP_AI_IMAGE_GEN_DEBUG_LOG ) {
+		error_log( $message );
+	}
+}
