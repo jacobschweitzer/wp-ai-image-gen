@@ -1,5 +1,5 @@
 # WP AI Image Gen
-### Easy way to generate and insert AI images into your WordPress posts using OpenAI and DALL-E 3.
+### Generate and insert AI images into your WordPress posts using OpenAI and DALL-E 3.
 
 ## Description
 Includes a WordPress Gutenberg block with a prompt box that generates an image and inserts an image block into the post.
