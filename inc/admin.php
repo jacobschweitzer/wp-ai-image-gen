@@ -12,8 +12,8 @@
  */
 function wp_ai_image_gen_add_settings_page() {
     add_options_page(
-        'AI Image Generator Settings',
-        'AI Image Generator',
+        'WP AI Image Gen Settings',
+        'WP AI Image Gen',
         'manage_options',
         'wp-ai-image-gen-settings',
         'wp_ai_image_gen_render_settings_page'
@@ -29,7 +29,7 @@ add_action('admin_menu', 'wp_ai_image_gen_add_settings_page');
 function wp_ai_image_gen_render_settings_page() {
     ?>
     <div class="wrap">
-        <h1>AI Image Generator Settings</h1>
+        <h1>WP AI Image Gen Settings</h1>
         <form method="post" action="options.php">
             <?php
             settings_fields('wp_ai_image_gen_settings');
