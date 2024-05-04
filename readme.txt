@@ -1,19 +1,15 @@
 === Wp Ai Image Gen ===
-Contributors:      The WordPress Contributors
+Contributors:      Jacob Schweitzer
 Tags:              block
 Tested up to:      6.1
 Stable tag:        0.1.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
-Example block scaffolded with Create Block tool.
+Generate AI images using OpenAI and DALL-E 3.
 
 == Description ==
-
-This is the long description. No limit, and you can use Markdown (as well as in the following sections).
-
-For backwards compatibility, if this section is missing, the full length of the short description will be used, and
-Markdown parsed.
+Includes a Gutenberg block to insert a prompt that generates an image then inserts an image block into the current post.
 
 == Installation ==
 
@@ -30,10 +26,6 @@ e.g.
 = A question that someone might have =
 
 An answer to that question.
-
-= What about foo bar? =
-
-Answer to foo bar dilemma.
 
 == Screenshots ==
 
