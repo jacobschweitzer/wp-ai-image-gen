@@ -30,6 +30,7 @@ if ( is_admin() ) {
 	require_once __DIR__ . '/inc/admin.php';
 }
 
+// Load the REST API functions.
 require_once __DIR__ . '/inc/rest-api.php';
 
 /**

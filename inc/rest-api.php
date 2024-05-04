@@ -18,7 +18,6 @@ function wp_ai_image_gen_register_rest_route() {
 	] );
 }
 add_action( 'rest_api_init', 'wp_ai_image_gen_register_rest_route' );
-
 /**
  * Handles the request to generate an image.
  *
@@ -27,146 +26,214 @@ add_action( 'rest_api_init', 'wp_ai_image_gen_register_rest_route' );
  * @return WP_REST_Response The response object.
  */
 function wp_ai_image_gen_handle_request( WP_REST_Request $request ) {
-	// Get the prompt from the request.
-	$prompt = $request->get_param('prompt');
+    // Get the prompt and API key
+    $prompt = wp_ai_image_gen_get_prompt( $request );
+    $api_key = wp_ai_image_gen_get_api_key();
 
-	// Your OpenAI API Key - store this securely, possibly in your wp-config.php.
-	$api_key = get_option('wp_ai_image_gen_openai_api_key');
+    // If the API key is not set, return an error
+    if ( empty( $api_key ) ) {
+        return new WP_REST_Response( 'OpenAI API Key is not set.', 500 );
+    }
 
-	// If the API key is not set, return an error.
-	if ( empty( $api_key ) ) {
-		return new WP_REST_Response( 'OpenAI API Key is not set.', 500);
-	}
+    // Make the API request to OpenAI
+    $response = wp_ai_image_gen_make_api_request( $prompt, $api_key );
 
-	// Prepare the API request.
-	$response = wp_remote_post('https://api.openai.com/v1/images/generations', [
-		'headers'     => [
-			'Authorization' => 'Bearer ' . $api_key, // Add the API key to the headers.
-			'Content-Type' => 'application/json', // Set the content type to JSON.
-		],
-		'body'        => json_encode([
-			'prompt' => $prompt, // Prompt for the image.
-			'n'      => 1, // Number of images to generate.
-			'size'   => '1024x1024', // Image size.
-			'model'  => "dall-e-3", // Model to use.
-		]),
-		'method'      => 'POST', // HTTP method.
-		'data_format' => 'body', // Data format.
-		'timeout'     => 30, // Increase the timeout to 30 seconds
-	]);
+    // Check if the request was successful
+    if ( is_wp_error( $response ) ) {
+        wp_ai_image_gen_log_error( 'OpenAI API Request Error: ' . $response->get_error_message() );
+        return new WP_REST_Response( 'Error in API request: ' . $response->get_error_message(), 500 );
+    }
 
-	// Check if the request was successful.
-	if ( is_wp_error( $response ) ) {
-		if ( WP_AI_IMAGE_GEN_DEBUG_LOG ) {
-			error_log( 'OpenAI API Request Error: ' . $response->get_error_message() );
-		}
-		return new WP_REST_Response( 'Error in API request: ' . $response->get_error_message(), 500 );
-	}
+    // Handle the API response
+    $image_url = wp_ai_image_gen_handle_api_response( $response );
 
-	// Get the response code and body.
-	$http_status = wp_remote_retrieve_response_code( $response );
+    // If there was an error in the API response, return an error
+    if ( is_wp_error( $image_url ) ) {
+        return new WP_REST_Response( 'Error in API response: ' . $image_url->get_error_message(), $image_url->get_error_code() );
+    }
 
-	// Decode the body of the response.
-	$body = json_decode( wp_remote_retrieve_body( $response ), true);
+    // Download the generated image
+    $image_data = wp_ai_image_gen_download_image( $image_url );
 
-	// Check if the response was successful.
-	if ( 200 !== $http_status ) {
-		if ( WP_AI_IMAGE_GEN_DEBUG_LOG ) {
-			error_log('OpenAI API Response Error: ' . $body['error']['message']);
-		}
-		return new WP_REST_Response("Error in API response: " . $body['error']['message'], $http_status);
-	}
+    // If there was an error downloading the image, return an error
+    if ( is_wp_error( $image_data ) ) {
+        wp_ai_image_gen_log_error( 'Error downloading image: ' . $image_data->get_error_message() );
+        return new WP_REST_Response( 'Error downloading image', 500 );
+    }
 
-	// Check if we have an image URL.
-	if ( empty( $body['data'][0]['url'] ) ) {
-		return new WP_REST_Response( 'Error in API response: ' . $body['error']['message'], $http_status );
-	}
+    // Upload the image to WordPress media library
+    $upload_result = wp_ai_image_gen_upload_image( $image_data, $image_url );
 
-	// Get the image URL from the response.
-	$image_url = $body['data'][0]['url'];
+    // If there was an error uploading the image, return an error
+    if ( is_wp_error( $upload_result ) ) {
+        wp_ai_image_gen_log_error( 'Error uploading image: ' . $upload_result->get_error_message() );
+        return new WP_REST_Response( 'Error uploading image: ' . $upload_result->get_error_message(), 500 );
+    }
 
-	// Download the image using wp_remote_get().
-	$response = wp_remote_get( $image_url );
-	if ( WP_AI_IMAGE_GEN_DEBUG_LOG ) {
-		error_log( 'Image Download Response: ' . print_r( $response, true ) );
-	}
+    // Return the URL and ID of the uploaded image
+    return new WP_REST_Response( $upload_result, 200 );
+}
 
-	// Log the MIME type of the downloaded image
-	$mime_type = wp_remote_retrieve_header( $response, 'content-type' );
-	if ( WP_AI_IMAGE_GEN_DEBUG_LOG ) {
-		error_log( 'Downloaded image MIME type: ' . $mime_type );
-	}
+/**
+ * Retrieves the prompt from the request.
+ *
+ * @param WP_REST_Request $request The request object.
+ *
+ * @return string The prompt.
+ */
+function wp_ai_image_gen_get_prompt( WP_REST_Request $request ) {
+    return $request->get_param( 'prompt' );
+}
 
-	$extension = pathinfo( $image_url, PATHINFO_EXTENSION );
-	if ( WP_AI_IMAGE_GEN_DEBUG_LOG ) {
-		error_log( 'File extension of downloaded image: ' . $extension );
-	}
+/**
+ * Retrieves the OpenAI API key from the WordPress options.
+ *
+ * @return string The API key.
+ */
+function wp_ai_image_gen_get_api_key() {
+    return get_option( 'wp_ai_image_gen_openai_api_key' );
+}
 
-	if ( is_wp_error( $response ) ) {
-		if ( WP_AI_IMAGE_GEN_DEBUG_LOG ) {
-			error_log( 'Error downloading image: ' . $response->get_error_message() );
-		}
-		return new WP_REST_Response( 'Error downloading image', 500 );
-	}
+/**
+ * Makes the API request to OpenAI for image generation.
+ *
+ * @param string $prompt  The prompt for image generation.
+ * @param string $api_key The OpenAI API key.
+ *
+ * @return array|WP_Error The API response or WP_Error on failure.
+ */
+function wp_ai_image_gen_make_api_request( $prompt, $api_key ) {
+    return wp_remote_post(
+        'https://api.openai.com/v1/images/generations',
+        [
+            'headers'     => [
+                'Authorization' => 'Bearer ' . $api_key,
+                'Content-Type'  => 'application/json',
+            ],
+            'body'        => json_encode( [
+                'prompt' => $prompt,
+                'n'      => 1,
+                'size'   => '1024x1024',
+                'model'  => "dall-e-3",
+            ] ),
+            'method'      => 'POST',
+            'data_format' => 'body',
+            'timeout'     => 30,
+        ]
+    );
+}
 
-	// Get the image data from the body of the response.
-	$image_data = wp_remote_retrieve_body( $response );
+/**
+ * Handles the API response and retrieves the image URL.
+ *
+ * @param array $response The API response.
+ *
+ * @return string|WP_Error The image URL or WP_Error on failure.
+ */
+function wp_ai_image_gen_handle_api_response( $response ) {
+    $http_status = wp_remote_retrieve_response_code( $response );
+    $body        = json_decode( wp_remote_retrieve_body( $response ), true );
 
-	// Adjust the filename if necessary.
-	// Extract the filename from the URL, removing any query parameters.
-	$parsed_url = parse_url($image_url);
-	$path_parts = pathinfo($parsed_url['path']);
-	$filename = $path_parts['basename'];
-	if ( WP_AI_IMAGE_GEN_DEBUG_LOG ) {
-		error_log( 'Filename of downloaded image: ' . $filename );
-	}
+    if ( 200 !== $http_status ) {
+        wp_ai_image_gen_log_error( 'OpenAI API Response Error: ' . $body['error']['message'] );
+        return new WP_Error( $http_status, $body['error']['message'] );
+    }
 
-	// Create a temporary file.
-	$tmp_file_path = tmpfile();
+    if ( empty( $body['data'][0]['url'] ) ) {
+        return new WP_Error( 'invalid_response', 'Invalid API response' );
+    }
 
-	// Write the image data to the temporary file.
-	fwrite( $tmp_file_path, $image_data );
+    return $body['data'][0]['url'];
+}
 
-	// Get the path of the temporary file.
-	$file_path = stream_get_meta_data( $tmp_file_path )['uri'];
+/**
+ * Downloads the image from the given URL.
+ *
+ * @param string $image_url The URL of the image to download.
+ *
+ * @return string|WP_Error The image data or WP_Error on failure.
+ */
+function wp_ai_image_gen_download_image( $image_url ) {
+    $response = wp_remote_get( $image_url );
 
-	// Include the media and file libraries so we can use media_handle_sideload().
-	require_once ABSPATH . 'wp-admin/includes/media.php';
-	require_once ABSPATH . 'wp-admin/includes/file.php';
-	require_once ABSPATH . 'wp-admin/includes/image.php';
+    if ( is_wp_error( $response ) ) {
+        return $response;
+    }
 
-	// Handle the file using media_handle_sideload.
-	$upload_id = media_handle_sideload( [
-	'name'     => $filename,
-	'type'     => $mime_type,
-	'tmp_name' => $file_path,
-	'size'     => filesize( $file_path ),
-	'error'    => 0,
-	], 0 );
+    $mime_type = wp_remote_retrieve_header( $response, 'content-type' );
+    $extension = pathinfo( $image_url, PATHINFO_EXTENSION );
 
-	// Check if media_handle_sideload returned a WP_Error.
-	if ( is_wp_error( $upload_id ) ) {
-		if ( WP_AI_IMAGE_GEN_DEBUG_LOG ) {
-			error_log( 'Error uploading image: ' . $upload_id->get_error_message() );
-		}
-		return new WP_REST_Response( 'Error uploading image: ' . $upload_id->get_error_message(), 500 );
-	}
+    wp_ai_image_gen_log_debug( 'Downloaded image MIME type: ' . $mime_type );
+    wp_ai_image_gen_log_debug( 'File extension of downloaded image: ' . $extension );
 
-	// Delete the temporary file.
-	fclose( $tmp_file_path );
+    return wp_remote_retrieve_body( $response );
+}
 
-	// Get the URL of the uploaded image.
-	$image_url = wp_get_attachment_url( $upload_id );
-	if ( ! $image_url ) {
-		return new WP_REST_Response( 'Error uploading image', 500 );
-	}
+/**
+ * Uploads the image to the WordPress media library.
+ *
+ * @param string $image_data The image data.
+ * @param string $image_url  The URL of the image.
+ *
+ * @return array|WP_Error The uploaded image data or WP_Error on failure.
+ */
+function wp_ai_image_gen_upload_image( $image_data, $image_url ) {
+    $parsed_url  = parse_url( $image_url );
+    $path_parts  = pathinfo( $parsed_url['path'] );
+    $filename    = $path_parts['basename'];
+    $tmp_file    = tmpfile();
 
-	// Return the URL of the uploaded image.
-	return new WP_REST_Response(
-		[
-			'url' => $image_url,
-			'id'  => $upload_id,
-		],
-		200
-	);
+    fwrite( $tmp_file, $image_data );
+    $file_path   = stream_get_meta_data( $tmp_file )['uri'];
+
+    require_once ABSPATH . 'wp-admin/includes/media.php';
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+
+    $upload_id   = media_handle_sideload( [
+        'name'     => $filename,
+        'type'     => mime_content_type( $file_path ),
+        'tmp_name' => $file_path,
+        'size'     => filesize( $file_path ),
+        'error'    => 0,
+    ], 0 );
+
+    fclose( $tmp_file );
+
+    if ( is_wp_error( $upload_id ) ) {
+        return $upload_id;
+    }
+
+    $image_url = wp_get_attachment_url( $upload_id );
+
+    if ( ! $image_url ) {
+        return new WP_Error( 'upload_error', 'Error uploading image' );
+    }
+
+    return [
+        'url' => $image_url,
+        'id'  => $upload_id,
+    ];
+}
+
+/**
+ * Logs an error message if debug logging is enabled.
+ *
+ * @param string $message The error message to log.
+ */
+function wp_ai_image_gen_log_error( $message ) {
+    if ( WP_AI_IMAGE_GEN_DEBUG_LOG ) {
+        error_log( $message );
+    }
+}
+
+/**
+ * Logs a debug message if debug logging is enabled.
+ *
+ * @param string $message The debug message to log.
+ */
+function wp_ai_image_gen_log_debug( $message ) {
+    if ( WP_AI_IMAGE_GEN_DEBUG_LOG ) {
+        error_log( $message );
+    }
 }
