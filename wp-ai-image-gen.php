@@ -30,6 +30,8 @@ if ( is_admin() ) {
 	require_once __DIR__ . '/inc/admin.php';
 }
 
+require_once __DIR__ . '/inc/rest-api.php';
+
 /**
  * Registers the block using the metadata loaded from the `block.json` file.
  * Behind the scenes, it registers also all assets so they can be enqueued
