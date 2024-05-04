@@ -246,7 +246,7 @@ module.exports = window["wp"]["element"];
   \************************/
 /***/ ((module) => {
 
-module.exports = /*#__PURE__*/JSON.parse('{"apiVersion":2,"name":"create-block/wp-ai-image-gen","version":"0.1.0","title":"AI Image Generator","category":"widgets","icon":"images-alt2","description":"Generate images using DALL-E 2 from OpenAI.","supports":{"html":false},"attributes":{"prompt":{"type":"string","default":""},"imageUrl":{"type":"string","default":""}},"textdomain":"wp-ai-image-gen","editorScript":"file:./index.js","editorStyle":"file:./index.css","style":"file:./style-index.css"}');
+module.exports = /*#__PURE__*/JSON.parse('{"apiVersion":2,"name":"create-block/wp-ai-image-gen","version":"0.1.0","title":"WP AI Image Gen","category":"widgets","icon":"images-alt2","description":"Generate images using DALL-E 3 from OpenAI.","supports":{"html":false},"attributes":{"prompt":{"type":"string","default":""},"imageUrl":{"type":"string","default":""}},"textdomain":"wp-ai-image-gen","editorScript":"file:./index.js","editorStyle":"file:./index.css","style":"file:./style-index.css"}');
 
 /***/ })
 

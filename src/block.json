@@ -2,10 +2,10 @@
     "apiVersion": 2,
     "name": "create-block/wp-ai-image-gen",
     "version": "0.1.0",
-    "title": "AI Image Generator",
+    "title": "WP AI Image Gen",
     "category": "widgets",
     "icon": "images-alt2",
-    "description": "Generate images using DALL-E 2 from OpenAI.",
+    "description": "Generate images using DALL-E 3 from OpenAI.",
     "supports": {
         "html": false
     },

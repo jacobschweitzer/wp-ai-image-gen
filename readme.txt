@@ -13,30 +13,11 @@ Includes a Gutenberg block to insert a prompt that generates an image then inser
 
 == Installation ==
 
-Activate the plugin and go to Settings -> WP AI Image Gen
-
-
-== Frequently Asked Questions ==
-
-= A question that someone might have =
-
-An answer to that question.
-
-== Screenshots ==
-
-1. This screen shot description corresponds to screenshot-1.(png|jpg|jpeg|gif). Note that the screenshot is taken from
-the /assets directory or the directory that contains the stable readme.txt (tags or trunk). Screenshots in the /assets
-directory take precedence. For example, `/assets/screenshot-1.png` would win over `/tags/4.3/screenshot-1.png`
-(or jpg, jpeg, gif).
-2. This is the second screen shot
-
-== Changelog ==
-
-= 0.1.0 =
-* Release
-
-== Arbitrary section ==
-
-You may provide arbitrary sections, in the same format as the ones above. This may be of use for extremely complicated
-plugins where more information needs to be conveyed that doesn't fit into the categories of "description" or
-"installation." Arbitrary sections will be shown below the built-in sections outlined above.
+Activate the plugin
+Add your OpenAI API key in Settings -> WP AI Image Gen
+Edit a post
+Insert the "WP AI Image Gen" block
+Put a prompt into the input box
+Click the Generate Image button
+(wait up to 30 seconds - OpenAI API can be slow sometimes)
+View/Edit the inserted core image block
