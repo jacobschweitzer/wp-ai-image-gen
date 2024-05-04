@@ -24,5 +24,5 @@ Click the Generate Image button
 View/Edit the inserted core image block
 
 == Screenshots ==
-![Screenshot](https://github.com/jacobschweitzer/wp-ai-image-gen/edit/main/assets/image.jpg?raw=true)
+![Screenshot](https://github.com/jacobschweitzer/wp-ai-image-gen/edit/main/assets/image.jpg?raw=true "Screenshot")
 
