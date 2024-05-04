@@ -14,6 +14,18 @@ const Edit = ({ attributes, setAttributes }) => {
 			.then((response) => {
 				if (response && response.url) {
 					setAttributes({ imageUrl: response.url });
+                    const { createBlock } = wp.blocks;
+                    const { insertBlock } = wp.data.dispatch('core/block-editor');
+
+                    // Create a core/image block with the image URL.
+                    const imageBlock = createBlock('core/image', {
+                        url: response.url,
+                        alt: prompt,
+                        id: response.id,
+                    });
+
+                    // Insert the new image block into the editor.
+                    insertBlock(imageBlock);
 				}
 			})
 			.catch((error) => {
@@ -34,14 +46,9 @@ const Edit = ({ attributes, setAttributes }) => {
                 value={prompt}
                 onChange={handlePromptChange}
             />
-            <Button isPrimary onClick={fetchImage}>
+            <Button className="button button-primary" onClick={fetchImage}>
                 Generate Image
             </Button>
-            {attributes.imageUrl && (
-                <div className="generated-image">
-                    <img src={attributes.imageUrl} alt="Generated Image" />
-                </div>
-            )}
         </div>
     );
 };

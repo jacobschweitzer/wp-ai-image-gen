@@ -203,6 +203,7 @@ function wp_ai_image_gen_handle_request( WP_REST_Request $request ) {
 	return new WP_REST_Response(
         [
             'url' => $image_url,
+            'id'  => $upload_id,
         ],
         200
     );
