@@ -12,10 +12,11 @@ Includes a WordPress Gutenberg block with a prompt box that generates an image a
 
 ## How To Gen
 1. Edit a post
-2. Insert the "WP AI Image Gen" block
-3. Put a prompt into the input box
-4. Click the Generate Image button
-5. View/Edit the inserted core image block
+2. Insert an image block
+3. Click the "Generate AI Image" button in the block toolbar
+4. Put a prompt into the input box
+5. Click the Generate Image button
+6. View/Edit the inserted image block (the alt text contains the prompt)
 
 ## Screenshots
 ![Screenshot of the promt box and a generated image](https://github.com/jacobschweitzer/wp-ai-image-gen/blob/main/assets/screenshot.png)

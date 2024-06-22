@@ -4,7 +4,7 @@
  * Description:       A plugin to generate images using AI.
  * Requires at least: 6.1
  * Requires PHP:      7.0
- * Version:           0.1.0
+ * Version:           0.1.1
  * Author:            Jacob Schweitzer
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -32,19 +32,6 @@ if ( is_admin() ) {
 
 // Load the REST API functions.
 require_once __DIR__ . '/inc/rest-api.php';
-
-/**
- * Registers the block using the metadata loaded from the `block.json` file.
- * Behind the scenes, it registers also all assets so they can be enqueued
- * through the block editor in the corresponding context.
- *
- * @see    https://developer.wordpress.org/reference/functions/register_block_type/
- * @return void
- */
-function create_block_wp_ai_image_gen_block_init() {
-	register_block_type( __DIR__ . '/build' );
-}
-add_action( 'init', 'create_block_wp_ai_image_gen_block_init' );
 
 /**
  * Logs an error message if debug logging is enabled.

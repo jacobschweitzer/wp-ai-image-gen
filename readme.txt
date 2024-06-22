@@ -2,7 +2,7 @@
 Contributors:      Jacob Schweitzer
 Tags:              block
 Tested up to:      6.1
-Stable tag:        0.1.0
+Stable tag:        0.1.1
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,11 +17,12 @@ Add your OpenAI API key in Settings -> WP AI Image Gen
 
 == How To Gen ==
 Edit a post
-Insert the "WP AI Image Gen" block
+Insert an image block
+Click the "Generate AI Image" button in the block toolbar
 Put a prompt into the input box
 Click the Generate Image button
 (wait up to 30 seconds - OpenAI API can be slow sometimes)
-View/Edit the inserted core image block
+View/Edit the inserted image block (the alt text contains the prompt)
 
 == Screenshots ==
 ![Screenshot](https://github.com/jacobschweitzer/wp-ai-image-gen/edit/main/assets/image.jpg?raw=true)
