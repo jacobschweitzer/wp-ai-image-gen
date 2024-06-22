@@ -34,19 +34,6 @@ if ( is_admin() ) {
 require_once __DIR__ . '/inc/rest-api.php';
 
 /**
- * Registers the block using the metadata loaded from the `block.json` file.
- * Behind the scenes, it registers also all assets so they can be enqueued
- * through the block editor in the corresponding context.
- *
- * @see    https://developer.wordpress.org/reference/functions/register_block_type/
- * @return void
- */
-function create_block_wp_ai_image_gen_block_init() {
-	register_block_type( __DIR__ . '/build' );
-}
-add_action( 'init', 'create_block_wp_ai_image_gen_block_init' );
-
-/**
  * Logs an error message if debug logging is enabled.
  *
  * @param string $message The error message to log.

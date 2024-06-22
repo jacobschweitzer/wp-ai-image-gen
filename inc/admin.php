@@ -73,3 +73,11 @@ function wp_ai_image_gen_openai_api_key_callback() {
 	$api_key = get_option('wp_ai_image_gen_openai_api_key');
 	echo '<input type="text" name="wp_ai_image_gen_openai_api_key" value="' . esc_attr($api_key) . '" size="40">';
 }
+
+/**
+ * Load the script.
+ */
+function wp_ai_image_gen_enqueue_script() {
+	wp_enqueue_script('wp-ai-image-gen', plugin_dir_url(__FILE__) . '../build/index.js', array('wp-blocks', 'wp-i18n', 'wp-editor'), '1.0.0', true);
+}
+add_action('admin_enqueue_scripts', 'wp_ai_image_gen_enqueue_script');
