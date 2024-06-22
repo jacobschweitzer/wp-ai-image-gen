@@ -25,10 +25,10 @@ import metadata from './block.json';
 import { addFilter } from '@wordpress/hooks';
 import { createHigherOrderComponent } from '@wordpress/compose';
 import { useState } from '@wordpress/element';
-import { Button, TextControl, Modal } from '@wordpress/components';
+import { Button, TextControl, Modal, Spinner } from '@wordpress/components';
 
 // Line 6: Function to generate the image
-const generateImage = (prompt, onSelect) => {
+const generateImage = (prompt, callback) => {
     wp.apiFetch({
         path: '/wp-ai-image-gen/v1/generate-image',
         method: 'POST',
@@ -36,7 +36,7 @@ const generateImage = (prompt, onSelect) => {
     })
         .then((response) => {
             if (response && response.url) {
-                onSelect({
+                callback({
                     url: response.url,
                     alt: prompt,
                     id: response.id,
@@ -45,6 +45,7 @@ const generateImage = (prompt, onSelect) => {
         })
         .catch((error) => {
             console.error('Error fetching image:', error);
+            callback(null);
         });
 };
 
@@ -77,16 +78,19 @@ const withImageGeneration = createHigherOrderComponent((BlockEdit) => {
 const AITab = ({ onSelect }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [prompt, setPrompt] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
 
-    // Line 52: Function to handle image generation and close modal
     const handleGenerate = () => {
-        generateImage(prompt, onSelect);
-        setIsModalOpen(false);
+        setIsLoading(true);
+        generateImage(prompt, (media) => {
+            onSelect(media);
+            setIsLoading(false);
+            setIsModalOpen(false);
+        });
     };
 
     return (
         <>
-            {/* Line 59: Button to open modal */}
             <div className="block-editor-media-placeholder__url-input-container">
                 <Button
                     variant="tertiary"
@@ -97,7 +101,6 @@ const AITab = ({ onSelect }) => {
                 </Button>
             </div>
 
-            {/* Line 69: Modal with text input and generate button */}
             {isModalOpen && (
                 <Modal
                     title="Generate AI Image"
@@ -111,8 +114,16 @@ const AITab = ({ onSelect }) => {
                     <Button
                         variant="primary"
                         onClick={handleGenerate}
+                        disabled={isLoading}
                     >
-                        Generate Image
+                        {isLoading ? (
+                            <>
+                                <Spinner />
+                                Generating...
+                            </>
+                        ) : (
+                            'Generate Image'
+                        )}
                     </Button>
                 </Modal>
             )}

@@ -198,7 +198,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 // Line 6: Function to generate the image
-const generateImage = (prompt, onSelect) => {
+const generateImage = (prompt, callback) => {
   wp.apiFetch({
     path: '/wp-ai-image-gen/v1/generate-image',
     method: 'POST',
@@ -207,7 +207,7 @@ const generateImage = (prompt, onSelect) => {
     }
   }).then(response => {
     if (response && response.url) {
-      onSelect({
+      callback({
         url: response.url,
         alt: prompt,
         id: response.id
@@ -215,6 +215,7 @@ const generateImage = (prompt, onSelect) => {
     }
   }).catch(error => {
     console.error('Error fetching image:', error);
+    callback(null);
   });
 };
 
@@ -251,11 +252,14 @@ const AITab = ({
 }) => {
   const [isModalOpen, setIsModalOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(false);
   const [prompt, setPrompt] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)('');
-
-  // Line 52: Function to handle image generation and close modal
+  const [isLoading, setIsLoading] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(false);
   const handleGenerate = () => {
-    generateImage(prompt, onSelect);
-    setIsModalOpen(false);
+    setIsLoading(true);
+    generateImage(prompt, media => {
+      onSelect(media);
+      setIsLoading(false);
+      setIsModalOpen(false);
+    });
   };
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     className: "block-editor-media-placeholder__url-input-container"
@@ -272,8 +276,9 @@ const AITab = ({
     onChange: setPrompt
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_9__.Button, {
     variant: "primary",
-    onClick: handleGenerate
-  }, "Generate Image")));
+    onClick: handleGenerate,
+    disabled: isLoading
+  }, isLoading ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_9__.Spinner, null), "Generating...") : 'Generate Image')));
 };
 
 // Line 79: Filter to add the AI tab to the media modal
