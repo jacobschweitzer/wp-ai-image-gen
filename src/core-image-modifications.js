@@ -69,7 +69,7 @@ const AITab = ({ onSelect }) => {
             {/* Modal for AI image generation */}
             {isModalOpen && (
                 <Modal
-                    title="Generate AI Image"
+                    title="WP AI Image Gen"
                     onRequestClose={() => setIsModalOpen(false)}
                 >
                     {/* Input field for the image prompt */}

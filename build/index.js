@@ -81,7 +81,7 @@ const AITab = ({
     onClick: () => setIsModalOpen(true),
     className: "block-editor-media-placeholder__button"
   }, "Generate AI Image")), isModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Modal, {
-    title: "Generate AI Image",
+    title: "WP AI Image Gen",
     onRequestClose: () => setIsModalOpen(false)
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.TextControl, {
     label: "Enter your image prompt",
