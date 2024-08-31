@@ -24,17 +24,38 @@ __webpack_require__.r(__webpack_exports__);
 
 
 /**
- * Generates an AI image based on the given prompt
+ * Fetches available providers from the server.
+ * @returns {Promise<Object>} A promise that resolves to an object of provider IDs and names.
+ */
+const fetchProviders = async () => {
+  try {
+    const response = await wp.apiFetch({
+      path: '/wp-ai-image-gen/v1/providers'
+    });
+    return response;
+  } catch (error) {
+    console.error('Error fetching providers:', error);
+    // Return an object with an error message that can be displayed to the user
+    return {
+      error: 'Unable to fetch providers. Please try again later.'
+    };
+  }
+};
+
+/**
+ * Generates an AI image based on the given prompt and provider
  * @param {string} prompt - The text prompt for image generation
+ * @param {string} provider - The selected provider ID
  * @param {function} callback - Function to handle the generated image data
  */
-const generateImage = (prompt, callback) => {
+const generateImage = (prompt, provider, callback) => {
   // Call the WordPress API to generate the image
   wp.apiFetch({
     path: '/wp-ai-image-gen/v1/generate-image',
     method: 'POST',
     data: {
-      prompt
+      prompt,
+      provider
     }
   }).then(response => {
     // If the response contains a valid URL, call the callback with image data
@@ -60,20 +81,60 @@ const generateImage = (prompt, callback) => {
 const AITab = ({
   onSelect
 }) => {
-  // State hooks for modal, prompt, and loading status
+  // State hooks for modal, prompt, loading status, providers, and selected provider
   const [isModalOpen, setIsModalOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
   const [prompt, setPrompt] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
   const [isLoading, setIsLoading] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
+  const [providers, setProviders] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)({});
+  const [selectedProvider, setSelectedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
+  const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(null);
+
+  // Add a new state hook for the last used provider
+  const [lastUsedProvider, setLastUsedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
+
+  // Fetch providers and last used provider when component mounts
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useEffect)(() => {
+    fetchProviders().then(result => {
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setProviders(result);
+        // Retrieve the last used provider from local storage
+        const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
+        if (storedProvider && result[storedProvider]) {
+          setSelectedProvider(storedProvider);
+          setLastUsedProvider(storedProvider);
+        } else {
+          // If no stored provider or it's invalid, use the first available provider
+          setSelectedProvider(Object.keys(result)[0]);
+        }
+      }
+    });
+  }, []);
+
+  // Update local storage when the selected provider changes
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useEffect)(() => {
+    if (selectedProvider) {
+      localStorage.setItem('wpAiImageGenLastProvider', selectedProvider);
+      setLastUsedProvider(selectedProvider);
+    }
+  }, [selectedProvider]);
 
   // Handler for image generation
   const handleGenerate = () => {
     setIsLoading(true);
-    generateImage(prompt, media => {
+    generateImage(prompt, selectedProvider, media => {
       onSelect(media);
       setIsLoading(false);
       setIsModalOpen(false);
     });
   };
+
+  // Prepare provider options for dropdown
+  const providerOptions = Object.entries(providers).map(([id, name]) => ({
+    value: id,
+    label: name
+  }));
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     className: "block-editor-media-placeholder__url-input-container"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Button, {
@@ -83,15 +144,24 @@ const AITab = ({
   }, "Generate AI Image")), isModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Modal, {
     title: "WP AI Image Gen",
     onRequestClose: () => setIsModalOpen(false)
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.TextControl, {
+  }, error ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
+    style: {
+      color: 'red'
+    }
+  }, error) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, providerOptions.length > 1 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.SelectControl, {
+    label: "Select Provider",
+    value: selectedProvider,
+    options: providerOptions,
+    onChange: setSelectedProvider
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.TextControl, {
     label: "Enter your image prompt",
     value: prompt,
     onChange: setPrompt
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Button, {
     variant: "primary",
     onClick: handleGenerate,
-    disabled: isLoading
-  }, isLoading ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null), "Generating...") : 'Generate Image')));
+    disabled: isLoading || !selectedProvider || Object.keys(providers).length === 0
+  }, isLoading ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null), "Generating...") : 'Generate Image'))));
 };
 
 // Add the AI tab to the media modal using WordPress filter

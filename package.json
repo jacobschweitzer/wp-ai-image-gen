@@ -1,8 +1,8 @@
 {
 	"name": "wp-ai-image-gen",
-	"version": "0.1.1",
-	"description": "Example block scaffolded with Create Block tool.",
-	"author": "The WordPress Contributors",
+	"version": "0.1.2",
+	"description": "A plugin to generate images using AI.",
+	"author": "Jacob Schweitzer",
 	"license": "GPL-2.0-or-later",
 	"main": "build/index.js",
 	"scripts": {
