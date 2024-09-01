@@ -58,15 +58,6 @@ function wp_ai_image_gen_migrate_api_keys() {
 		$migration_needed = true;
 	}
 
-	// Check for additional providers in old format
-	$additional_providers = get_option('wp_ai_image_gen_additional_providers', array());
-	foreach ($additional_providers as $provider => $key) {
-		if (!isset($provider_api_keys[$provider])) {
-			$provider_api_keys[$provider] = $key;
-			$migration_needed = true;
-		}
-	}
-
 	// Update the option if migration was needed
 	if ($migration_needed) {
 		update_option('wp_ai_image_gen_provider_api_keys', $provider_api_keys);
