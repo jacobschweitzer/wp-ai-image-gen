@@ -22,6 +22,7 @@ Includes a WordPress Gutenberg block with a prompt box that generates an image a
 
 ## Screenshots
 ![Screenshot of the promt box and a generated image](https://github.com/jacobschweitzer/wp-ai-image-gen/blob/main/assets/screenshot.png)
+![1930s style movie marquee, "WP AI IMAGE GEN" is written in neon lights, excited crowd of people waiting outside](https://github.com/user-attachments/assets/11757cae-4bc5-4052-9fd3-ce1a4ef43a4c)
 
 ## Models Supported
 - [DALL-E 3 by OpenAI](https://openai.com/index/dall-e-3/)
