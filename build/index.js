@@ -33,6 +33,8 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+
+
 /**
  * Fetches available providers from the server.
  * @returns {Promise<Object>} A promise that resolves to an object of provider IDs and names.
@@ -71,7 +73,6 @@ const generateImage = async (prompt, provider, callback) => {
         provider
       }
     });
-    console.log('Raw API response:', response);
 
     // If the response contains a valid URL, call the callback with image data
     if (response && response.url) {
@@ -187,6 +188,61 @@ const AITab = ({
   }, isLoading ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null), "Generating...") : 'Generate Image'))));
 };
 
+// Add this new component after the AITab component
+/**
+ * RegenerateAIImage component for regenerating AI images in the core image block.
+ * @param {Object} props - Component props
+ * @param {Object} props.attributes - Block attributes
+ * @param {function} props.setAttributes - Function to update block attributes
+ */
+const RegenerateAIImage = ({
+  attributes,
+  setAttributes
+}) => {
+  const [isRegenerating, setIsRegenerating] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
+  const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(null);
+  const [lastUsedProvider, setLastUsedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
+
+  // Fetch the last used provider when the component mounts
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useEffect)(() => {
+    const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
+    if (storedProvider) {
+      setLastUsedProvider(storedProvider);
+    }
+  }, []);
+
+  // Handler for regenerating the AI image
+  const handleRegenerate = () => {
+    setIsRegenerating(true);
+    setError(null);
+    generateImage(attributes.alt, lastUsedProvider, result => {
+      setIsRegenerating(false);
+      if (result.error) {
+        setError(result.error);
+        console.error('Image regeneration failed:', result.error);
+      } else {
+        setAttributes({
+          url: result.url,
+          id: result.id
+        });
+        console.log('Image regenerated successfully:', result);
+      }
+    });
+  };
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.PanelBody, {
+    title: "WP AI Image Gen"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Button, {
+    variant: "secondary",
+    onClick: handleRegenerate,
+    disabled: isRegenerating || !lastUsedProvider,
+    isBusy: isRegenerating
+  }, isRegenerating ? 'Regenerating...' : 'Regenerate AI Image'), error && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
+    style: {
+      color: 'red'
+    }
+  }, error));
+};
+
 // Register the custom format type for AI image generation from selected text
 (0,_wordpress_rich_text__WEBPACK_IMPORTED_MODULE_4__.registerFormatType)('wp-ai-image-gen/custom-format', {
   title: 'AI Image Gen',
@@ -225,8 +281,7 @@ const AITab = ({
             console.log('Image generated successfully:', result);
             const imageBlock = wp.blocks.createBlock('core/image', {
               url: result.url,
-              alt: result.alt,
-              caption: selectedText
+              alt: result.alt
             });
             replaceBlocks(selectedBlock.clientId, [imageBlock, selectedBlock]);
           }
@@ -257,6 +312,23 @@ console.log('WP AI Image Gen: Script loaded');
         onSelect: props.onSelect
       }))
     });
+  };
+});
+
+// Modify the existing addFilter function at the end of the file
+(0,_wordpress_hooks__WEBPACK_IMPORTED_MODULE_1__.addFilter)('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', BlockEdit => {
+  return props => {
+    if (props.name !== 'core/image') {
+      return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(BlockEdit, {
+        ...props
+      });
+    }
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(BlockEdit, {
+      ...props
+    }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__.InspectorControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(RegenerateAIImage, {
+      attributes: props.attributes,
+      setAttributes: props.setAttributes
+    })));
   };
 });
 

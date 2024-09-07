@@ -6,6 +6,8 @@ import { registerFormatType, toggleFormat } from '@wordpress/rich-text';
 import { BlockControls } from '@wordpress/block-editor';
 import { useSelect, useDispatch } from '@wordpress/data';
 import { useCallback } from '@wordpress/element';
+import { InspectorControls } from '@wordpress/block-editor';
+import { PanelBody } from '@wordpress/components';
 
 /**
  * Fetches available providers from the server.
@@ -38,8 +40,6 @@ const generateImage = async (prompt, provider, callback) => {
             method: 'POST',
             data: { prompt, provider },
         });
-
-        console.log('Raw API response:', response);
 
         // If the response contains a valid URL, call the callback with image data
         if (response && response.url) {
@@ -181,6 +181,61 @@ const AITab = ({ onSelect }) => {
     );
 };
 
+// Add this new component after the AITab component
+/**
+ * RegenerateAIImage component for regenerating AI images in the core image block.
+ * @param {Object} props - Component props
+ * @param {Object} props.attributes - Block attributes
+ * @param {function} props.setAttributes - Function to update block attributes
+ */
+const RegenerateAIImage = ({ attributes, setAttributes }) => {
+    const [isRegenerating, setIsRegenerating] = useState(false);
+    const [error, setError] = useState(null);
+    const [lastUsedProvider, setLastUsedProvider] = useState('');
+
+    // Fetch the last used provider when the component mounts
+    useEffect(() => {
+        const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
+        if (storedProvider) {
+            setLastUsedProvider(storedProvider);
+        }
+    }, []);
+
+    // Handler for regenerating the AI image
+    const handleRegenerate = () => {
+        setIsRegenerating(true);
+        setError(null);
+        
+        generateImage(attributes.alt, lastUsedProvider, (result) => {
+            setIsRegenerating(false);
+            if (result.error) {
+                setError(result.error);
+                console.error('Image regeneration failed:', result.error);
+            } else {
+                setAttributes({
+                    url: result.url,
+                    id: result.id,
+                });
+                console.log('Image regenerated successfully:', result);
+            }
+        });
+    };
+
+    return (
+        <PanelBody title="WP AI Image Gen">
+            <Button
+                variant="secondary"
+                onClick={handleRegenerate}
+                disabled={isRegenerating || !lastUsedProvider}
+                isBusy={isRegenerating}
+            >
+                {isRegenerating ? 'Regenerating...' : 'Regenerate AI Image'}
+            </Button>
+            {error && <p style={{ color: 'red' }}>{error}</p>}
+        </PanelBody>
+    );
+};
+
 // Register the custom format type for AI image generation from selected text
 registerFormatType('wp-ai-image-gen/custom-format', {
     title: 'AI Image Gen',
@@ -221,7 +276,6 @@ registerFormatType('wp-ai-image-gen/custom-format', {
                         const imageBlock = wp.blocks.createBlock('core/image', {
                             url: result.url,
                             alt: result.alt,
-                            caption: selectedText
                         });
                         replaceBlocks(selectedBlock.clientId, [imageBlock, selectedBlock]);
                     }
@@ -263,6 +317,27 @@ addFilter('editor.MediaUpload', 'wp-ai-image-gen/add-ai-tab', (OriginalMediaUplo
                     </>
                 )}
             />
+        );
+    };
+});
+
+// Modify the existing addFilter function at the end of the file
+addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdit) => {
+    return (props) => {
+        if (props.name !== 'core/image') {
+            return <BlockEdit {...props} />;
+        }
+
+        return (
+            <>
+                <BlockEdit {...props} />
+                <InspectorControls>
+                    <RegenerateAIImage
+                        attributes={props.attributes}
+                        setAttributes={props.setAttributes}
+                    />
+                </InspectorControls>
+            </>
         );
     };
 });
