@@ -270,10 +270,13 @@ const RegenerateAIImage = ({
       if (selectedBlock && selectedBlock.name === 'core/paragraph') {
         const selectedText = value.text;
 
-        // Create and insert an empty placeholder block
-        const placeholderBlock = wp.blocks.createBlock('core/paragraph', {
+        // Create and insert a placeholder heading block with a message
+        const placeholderBlock = wp.blocks.createBlock('core/heading', {
           content: 'Generating AI image...',
-          className: 'wp-ai-image-gen-placeholder'
+          level: 2,
+          style: {
+            textAlign: 'center'
+          }
         });
         replaceBlocks(selectedBlock.clientId, [placeholderBlock, selectedBlock]);
         setIsGenerating(true);
