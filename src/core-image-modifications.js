@@ -49,8 +49,12 @@ const generateImage = async (prompt, provider, callback) => {
                 caption: '',
             });
         } else {
-            // If the response doesn't contain a URL, throw an error
-            throw new Error('Invalid response from server: ' + JSON.stringify(response));
+            // Check for NSFW content error
+            if (response && response.error && response.error.includes('NSFW content')) {
+                throw new Error('The image could not be generated due to potential inappropriate content. Please try a different prompt.');
+            } else {
+                throw new Error('Invalid response from server: ' + JSON.stringify(response));
+            }
         }
     } catch (error) {
         // Log the detailed error and call the callback with an error object
@@ -240,14 +244,14 @@ const RegenerateAIImage = ({ attributes, setAttributes }) => {
  * AIImageToolbar component for adding a new section to the paragraph toolbar.
  * @param {Object} props - Component props
  */
-const AIImageToolbar = ({ isGenerating, onGenerateImage }) => {
+const AIImageToolbar = ({ isRegenerating, onRegenerateImage }) => {
     return (
         <ToolbarGroup>
             <ToolbarButton
-                icon={isGenerating ? <Spinner /> : "art"}
-                label={isGenerating ? "Generating AI Image..." : "Generate AI Image"}
-                onClick={onGenerateImage}
-                disabled={isGenerating}
+                icon={isRegenerating ? <Spinner /> : "update"}
+                label={isRegenerating ? "Regenerating AI Image..." : "Regenerate AI Image"}
+                onClick={onRegenerateImage}
+                disabled={isRegenerating}
             />
         </ToolbarGroup>
     );
@@ -351,6 +355,35 @@ addFilter('editor.MediaUpload', 'wp-ai-image-gen/add-ai-tab', (OriginalMediaUplo
 // Modify the existing addFilter function at the end of the file
 addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdit) => {
     return (props) => {
+        const [isRegenerating, setIsRegenerating] = useState(false);
+        const [lastUsedProvider, setLastUsedProvider] = useState('');
+
+        useEffect(() => {
+            const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
+            if (storedProvider) {
+                setLastUsedProvider(storedProvider);
+            }
+        }, []);
+
+        const handleRegenerateImage = () => {
+            setIsRegenerating(true);
+            generateImage(props.attributes.alt, lastUsedProvider, (result) => {
+                setIsRegenerating(false);
+                if (result.error) {
+                    console.error('Image regeneration failed:', result.error);
+                    wp.data.dispatch('core/notices').createErrorNotice(
+                        'Failed to regenerate image: ' + result.error,
+                        { type: 'snackbar' }
+                    );
+                } else {
+                    props.setAttributes({
+                        url: result.url,
+                        id: result.id || `ai-generated-${Date.now()}`,
+                    });
+                }
+            });
+        };
+
         if (props.name !== 'core/image') {
             return <BlockEdit {...props} />;
         }
@@ -358,6 +391,12 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
         return (
             <>
                 <BlockEdit {...props} />
+                <BlockControls>
+                    <AIImageToolbar
+                        isRegenerating={isRegenerating}
+                        onRegenerateImage={handleRegenerateImage}
+                    />
+                </BlockControls>
                 <InspectorControls>
                     <RegenerateAIImage
                         attributes={props.attributes}
