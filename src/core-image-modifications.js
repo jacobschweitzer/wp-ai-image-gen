@@ -8,6 +8,7 @@ import { useSelect, useDispatch } from '@wordpress/data';
 import { useCallback } from '@wordpress/element';
 import { InspectorControls } from '@wordpress/block-editor';
 import { PanelBody } from '@wordpress/components';
+import { ToolbarGroup } from '@wordpress/components';
 
 /**
  * Fetches available providers from the server.
@@ -234,7 +235,25 @@ const RegenerateAIImage = ({ attributes, setAttributes }) => {
     );
 };
 
-// Register the custom format type for AI image generation from selected text
+// Add this new component after the RegenerateAIImage component
+/**
+ * AIImageToolbar component for adding a new section to the paragraph toolbar.
+ * @param {Object} props - Component props
+ */
+const AIImageToolbar = ({ isGenerating, onGenerateImage }) => {
+    return (
+        <ToolbarGroup>
+            <ToolbarButton
+                icon={isGenerating ? <Spinner /> : "art"}
+                label={isGenerating ? "Generating AI Image..." : "Generate AI Image"}
+                onClick={onGenerateImage}
+                disabled={isGenerating}
+            />
+        </ToolbarGroup>
+    );
+};
+
+// Modify the existing registerFormatType function
 registerFormatType('wp-ai-image-gen/custom-format', {
     title: 'AI Image Gen',
     tagName: 'span',
@@ -300,12 +319,9 @@ registerFormatType('wp-ai-image-gen/custom-format', {
 
         return (
             <BlockControls>
-                <ToolbarButton
-                    icon={isGenerating ? <Spinner /> : "art"}
-                    title={isGenerating ? "Generating AI Image..." : "Generate AI Image"}
-                    onClick={handleGenerateImage}
-                    isActive={isActive}
-                    disabled={isGenerating}
+                <AIImageToolbar
+                    isGenerating={isGenerating}
+                    onGenerateImage={handleGenerateImage}
                 />
             </BlockControls>
         );

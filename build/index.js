@@ -35,6 +35,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+
 /**
  * Fetches available providers from the server.
  * @returns {Promise<Object>} A promise that resolves to an object of provider IDs and names.
@@ -242,7 +243,24 @@ const RegenerateAIImage = ({
   }, error));
 };
 
-// Register the custom format type for AI image generation from selected text
+// Add this new component after the RegenerateAIImage component
+/**
+ * AIImageToolbar component for adding a new section to the paragraph toolbar.
+ * @param {Object} props - Component props
+ */
+const AIImageToolbar = ({
+  isGenerating,
+  onGenerateImage
+}) => {
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
+    icon: isGenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null) : "art",
+    label: isGenerating ? "Generating AI Image..." : "Generate AI Image",
+    onClick: onGenerateImage,
+    disabled: isGenerating
+  }));
+};
+
+// Modify the existing registerFormatType function
 (0,_wordpress_rich_text__WEBPACK_IMPORTED_MODULE_4__.registerFormatType)('wp-ai-image-gen/custom-format', {
   title: 'AI Image Gen',
   tagName: 'span',
@@ -302,12 +320,9 @@ const RegenerateAIImage = ({
         });
       }
     }, [selectedBlock, value.text, replaceBlocks, lastUsedProvider]);
-    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__.BlockControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
-      icon: isGenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null) : "art",
-      title: isGenerating ? "Generating AI Image..." : "Generate AI Image",
-      onClick: handleGenerateImage,
-      isActive: isActive,
-      disabled: isGenerating
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__.BlockControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(AIImageToolbar, {
+      isGenerating: isGenerating,
+      onGenerateImage: handleGenerateImage
     }));
   }
 });
