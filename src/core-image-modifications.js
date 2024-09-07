@@ -216,7 +216,6 @@ const RegenerateAIImage = ({ attributes, setAttributes }) => {
                     url: result.url,
                     id: result.id,
                 });
-                console.log('Image regenerated successfully:', result);
             }
         });
     };
@@ -261,8 +260,6 @@ registerFormatType('wp-ai-image-gen/custom-format', {
         const handleGenerateImage = useCallback(() => {
             if (selectedBlock && selectedBlock.name === 'core/paragraph') {
                 const selectedText = value.text;
-                console.log('Selected text:', selectedText);
-                console.log('Using provider:', lastUsedProvider);
                 
                 generateImage(selectedText, lastUsedProvider, (result) => {
                     if (result.error) {
@@ -272,7 +269,6 @@ registerFormatType('wp-ai-image-gen/custom-format', {
                             { type: 'snackbar' }
                         );
                     } else {
-                        console.log('Image generated successfully:', result);
                         const imageBlock = wp.blocks.createBlock('core/image', {
                             url: result.url,
                             alt: result.alt,
@@ -281,8 +277,6 @@ registerFormatType('wp-ai-image-gen/custom-format', {
                         replaceBlocks(selectedBlock.clientId, [imageBlock, selectedBlock]);
                     }
                 });
-            } else {
-                console.log('No paragraph block selected');
             }
         }, [selectedBlock, value.text, replaceBlocks, lastUsedProvider]);
 
@@ -298,9 +292,6 @@ registerFormatType('wp-ai-image-gen/custom-format', {
         );
     },
 });
-
-// Log that the script has loaded
-console.log('WP AI Image Gen: Script loaded');
 
 // Add the AI tab to the media modal using WordPress filter
 addFilter('editor.MediaUpload', 'wp-ai-image-gen/add-ai-tab', (OriginalMediaUpload) => {

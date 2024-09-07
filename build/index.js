@@ -225,7 +225,6 @@ const RegenerateAIImage = ({
           url: result.url,
           id: result.id
         });
-        console.log('Image regenerated successfully:', result);
       }
     });
   };
@@ -269,8 +268,6 @@ const RegenerateAIImage = ({
     const handleGenerateImage = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useCallback)(() => {
       if (selectedBlock && selectedBlock.name === 'core/paragraph') {
         const selectedText = value.text;
-        console.log('Selected text:', selectedText);
-        console.log('Using provider:', lastUsedProvider);
         generateImage(selectedText, lastUsedProvider, result => {
           if (result.error) {
             console.error('Image generation failed:', result.error);
@@ -278,7 +275,6 @@ const RegenerateAIImage = ({
               type: 'snackbar'
             });
           } else {
-            console.log('Image generated successfully:', result);
             const imageBlock = wp.blocks.createBlock('core/image', {
               url: result.url,
               alt: result.alt,
@@ -287,8 +283,6 @@ const RegenerateAIImage = ({
             replaceBlocks(selectedBlock.clientId, [imageBlock, selectedBlock]);
           }
         });
-      } else {
-        console.log('No paragraph block selected');
       }
     }, [selectedBlock, value.text, replaceBlocks, lastUsedProvider]);
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__.BlockControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
@@ -299,9 +293,6 @@ const RegenerateAIImage = ({
     }));
   }
 });
-
-// Log that the script has loaded
-console.log('WP AI Image Gen: Script loaded');
 
 // Add the AI tab to the media modal using WordPress filter
 (0,_wordpress_hooks__WEBPACK_IMPORTED_MODULE_1__.addFilter)('editor.MediaUpload', 'wp-ai-image-gen/add-ai-tab', OriginalMediaUpload => {
