@@ -1,7 +1,7 @@
 // Import necessary WordPress components and hooks
 import { addFilter } from '@wordpress/hooks';
 import { useState, useEffect } from '@wordpress/element';
-import { Button, TextControl, Modal, Spinner, SelectControl, ToolbarButton } from '@wordpress/components';
+import { Button, TextControl, Modal, Spinner, SelectControl, ToolbarButton, Icon } from '@wordpress/components';
 import { registerFormatType, toggleFormat } from '@wordpress/rich-text';
 import { BlockControls } from '@wordpress/block-editor';
 import { useSelect, useDispatch } from '@wordpress/data';
@@ -113,11 +113,23 @@ const AITab = ({ onSelect }) => {
 
     // Handler for image generation
     const handleGenerate = () => {
+        // Check if the prompt is empty or only whitespace
+        if (!prompt.trim()) {
+            setError('Please enter a prompt for image generation.');
+            return;
+        }
+
         setIsLoading(true);
-        generateImage(prompt, selectedProvider, (media) => {
-            onSelect(media);
-            setIsLoading(false);
-            setIsModalOpen(false);
+        setError(null); // Clear any previous errors
+        generateImage(prompt.trim(), selectedProvider, (media) => {
+            if (media.error) {
+                setError(media.error);
+                setIsLoading(false);
+            } else {
+                onSelect(media);
+                setIsLoading(false);
+                setIsModalOpen(false);
+            }
         });
     };
 
@@ -143,42 +155,37 @@ const AITab = ({ onSelect }) => {
                     title="WP AI Image Gen"
                     onRequestClose={() => setIsModalOpen(false)}
                 >
-                    {error ? (
-                        <p style={{ color: 'red' }}>{error}</p>
-                    ) : (
-                        <>
-                            {/* Provider dropdown (only if there's more than one provider) */}
-                            {providerOptions.length > 1 && (
-                                <SelectControl
-                                    label="Select Provider"
-                                    value={selectedProvider}
-                                    options={providerOptions}
-                                    onChange={setSelectedProvider}
-                                />
-                            )}
-                            {/* Input field for the image prompt */}
-                            <TextControl
-                                label="Enter your image prompt"
-                                value={prompt}
-                                onChange={setPrompt}
-                            />
-                            {/* Button to trigger image generation */}
-                            <Button
-                                variant="primary"
-                                onClick={handleGenerate}
-                                disabled={isLoading || !selectedProvider || Object.keys(providers).length === 0}
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <Spinner />
-                                        Generating...
-                                    </>
-                                ) : (
-                                    'Generate Image'
-                                )}
-                            </Button>
-                        </>
+                    {error && <p style={{ color: 'red' }}>{error}</p>}
+                    {/* Provider dropdown (only if there's more than one provider) */}
+                    {providerOptions.length > 1 && (
+                        <SelectControl
+                            label="Select Provider"
+                            value={selectedProvider}
+                            options={providerOptions}
+                            onChange={setSelectedProvider}
+                        />
                     )}
+                    {/* Input field for the image prompt */}
+                    <TextControl
+                        label="Enter your image prompt"
+                        value={prompt}
+                        onChange={setPrompt}
+                    />
+                    {/* Button to trigger image generation */}
+                    <Button
+                        variant="primary"
+                        onClick={handleGenerate}
+                        disabled={isLoading || !selectedProvider || !prompt.trim()}
+                    >
+                        {isLoading ? (
+                            <>
+                                <Spinner />
+                                Generating...
+                            </>
+                        ) : (
+                            'Generate Image'
+                        )}
+                    </Button>
                 </Modal>
             )}
         </>
@@ -192,25 +199,18 @@ const AITab = ({ onSelect }) => {
  * @param {Object} props.attributes - Block attributes
  * @param {function} props.setAttributes - Function to update block attributes
  */
-const RegenerateAIImage = ({ attributes, setAttributes }) => {
-    const [isRegenerating, setIsRegenerating] = useState(false);
-    const [error, setError] = useState(null);
-    const [lastUsedProvider, setLastUsedProvider] = useState('');
-
-    // Fetch the last used provider when the component mounts
-    useEffect(() => {
-        const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
-        if (storedProvider) {
-            setLastUsedProvider(storedProvider);
-        }
-    }, []);
-
-    // Handler for regenerating the AI image
+const RegenerateAIImage = ({ attributes, setAttributes, error, setError, isRegenerating, setIsRegenerating, lastUsedProvider }) => {
     const handleRegenerate = () => {
-        setIsRegenerating(true);
+        // Check if alt text exists and is not empty
+        if (!attributes.alt || attributes.alt.trim() === '') {
+            setError('Please provide alt text to use as the image generation prompt.');
+            return;
+        }
+
         setError(null);
+        setIsRegenerating(true);
         
-        generateImage(attributes.alt, lastUsedProvider, (result) => {
+        generateImage(attributes.alt.trim(), lastUsedProvider, (result) => {
             setIsRegenerating(false);
             if (result.error) {
                 setError(result.error);
@@ -241,20 +241,41 @@ const RegenerateAIImage = ({ attributes, setAttributes }) => {
 
 // Add this new component after the RegenerateAIImage component
 /**
- * AIImageToolbar component for adding a new section to the paragraph toolbar.
- * @param {Object} props - Component props
+ * AIImageToolbar component for adding buttons to toolbars.
+ * This component now uses different icons for paragraph and image blocks.
  */
-const AIImageToolbar = ({ isRegenerating, onRegenerateImage }) => {
-    return (
-        <ToolbarGroup>
-            <ToolbarButton
-                icon={isRegenerating ? <Spinner /> : "update"}
-                label={isRegenerating ? "Regenerating AI Image..." : "Regenerate AI Image"}
-                onClick={onRegenerateImage}
-                disabled={isRegenerating}
-            />
-        </ToolbarGroup>
-    );
+const AIImageToolbar = ({ isGenerating, onGenerateImage, isRegenerating, onRegenerateImage, isTextSelected, isImageBlock }) => {
+    // Custom art icon component for paragraph blocks
+    const ArtIcon = () => <Icon icon="art" />;
+
+    if (isImageBlock) {
+        // Render regenerate button with refresh icon for image blocks
+        return (
+            <ToolbarGroup>
+                <ToolbarButton
+                    icon={isRegenerating ? <Spinner /> : "update"}
+                    label={isRegenerating ? "Regenerating AI Image..." : "Regenerate AI Image"}
+                    onClick={onRegenerateImage}
+                    disabled={isRegenerating}
+                />
+            </ToolbarGroup>
+        );
+    } else if (isTextSelected) {
+        // Render generate button with art icon for paragraph blocks with selected text
+        return (
+            <ToolbarGroup>
+                <ToolbarButton
+                    icon={isGenerating ? <Spinner /> : ArtIcon}
+                    label={isGenerating ? "Generating AI Image..." : "Generate AI Image"}
+                    onClick={onGenerateImage}
+                    disabled={isGenerating}
+                />
+            </ToolbarGroup>
+        );
+    }
+    
+    // Return null if conditions are not met
+    return null;
 };
 
 // Modify the existing registerFormatType function
@@ -282,7 +303,16 @@ registerFormatType('wp-ai-image-gen/custom-format', {
 
         const handleGenerateImage = useCallback(() => {
             if (selectedBlock && selectedBlock.name === 'core/paragraph') {
-                const selectedText = value.text;
+                const selectedText = value.text.trim();
+                
+                // Check if selected text exists and is not empty
+                if (!selectedText) {
+                    wp.data.dispatch('core/notices').createErrorNotice(
+                        'Please select some text to use as the image generation prompt.',
+                        { type: 'snackbar' }
+                    );
+                    return;
+                }
                 
                 // Create and insert a placeholder heading block with a message
                 const placeholderBlock = wp.blocks.createBlock('core/heading', {
@@ -321,11 +351,15 @@ registerFormatType('wp-ai-image-gen/custom-format', {
             }
         }, [selectedBlock, value.text, replaceBlocks, lastUsedProvider]);
 
+        // Check if there's any text selected
+        const isTextSelected = value.start !== value.end;
+
         return (
             <BlockControls>
                 <AIImageToolbar
                     isGenerating={isGenerating}
                     onGenerateImage={handleGenerateImage}
+                    isTextSelected={isTextSelected}
                 />
             </BlockControls>
         );
@@ -357,6 +391,7 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
     return (props) => {
         const [isRegenerating, setIsRegenerating] = useState(false);
         const [lastUsedProvider, setLastUsedProvider] = useState('');
+        const [error, setError] = useState(null);
 
         useEffect(() => {
             const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
@@ -366,10 +401,22 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
         }, []);
 
         const handleRegenerateImage = () => {
+            // Check if alt text exists and is not empty
+            if (!props.attributes.alt || props.attributes.alt.trim() === '') {
+                setError('Please provide alt text to use as the image generation prompt.');
+                wp.data.dispatch('core/notices').createErrorNotice(
+                    'Please provide alt text to use as the image generation prompt.',
+                    { type: 'snackbar' }
+                );
+                return;
+            }
+
+            setError(null);
             setIsRegenerating(true);
-            generateImage(props.attributes.alt, lastUsedProvider, (result) => {
+            generateImage(props.attributes.alt.trim(), lastUsedProvider, (result) => {
                 setIsRegenerating(false);
                 if (result.error) {
+                    setError(result.error);
                     console.error('Image regeneration failed:', result.error);
                     wp.data.dispatch('core/notices').createErrorNotice(
                         'Failed to regenerate image: ' + result.error,
@@ -395,12 +442,18 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
                     <AIImageToolbar
                         isRegenerating={isRegenerating}
                         onRegenerateImage={handleRegenerateImage}
+                        isImageBlock={true}
                     />
                 </BlockControls>
                 <InspectorControls>
                     <RegenerateAIImage
                         attributes={props.attributes}
                         setAttributes={props.setAttributes}
+                        error={error}
+                        setError={setError}
+                        isRegenerating={isRegenerating}
+                        setIsRegenerating={setIsRegenerating}
+                        lastUsedProvider={lastUsedProvider}
                     />
                 </InspectorControls>
             </>

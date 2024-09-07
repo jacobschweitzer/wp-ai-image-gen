@@ -151,11 +151,22 @@ const AITab = ({
 
   // Handler for image generation
   const handleGenerate = () => {
+    // Check if the prompt is empty or only whitespace
+    if (!prompt.trim()) {
+      setError('Please enter a prompt for image generation.');
+      return;
+    }
     setIsLoading(true);
-    generateImage(prompt, selectedProvider, media => {
-      onSelect(media);
-      setIsLoading(false);
-      setIsModalOpen(false);
+    setError(null); // Clear any previous errors
+    generateImage(prompt.trim(), selectedProvider, media => {
+      if (media.error) {
+        setError(media.error);
+        setIsLoading(false);
+      } else {
+        onSelect(media);
+        setIsLoading(false);
+        setIsModalOpen(false);
+      }
     });
   };
 
@@ -173,11 +184,11 @@ const AITab = ({
   }, "Generate AI Image")), isModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Modal, {
     title: "WP AI Image Gen",
     onRequestClose: () => setIsModalOpen(false)
-  }, error ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
+  }, error && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
     style: {
       color: 'red'
     }
-  }, error) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, providerOptions.length > 1 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.SelectControl, {
+  }, error), providerOptions.length > 1 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.SelectControl, {
     label: "Select Provider",
     value: selectedProvider,
     options: providerOptions,
@@ -189,8 +200,8 @@ const AITab = ({
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Button, {
     variant: "primary",
     onClick: handleGenerate,
-    disabled: isLoading || !selectedProvider || Object.keys(providers).length === 0
-  }, isLoading ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null), "Generating...") : 'Generate Image'))));
+    disabled: isLoading || !selectedProvider || !prompt.trim()
+  }, isLoading ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null), "Generating...") : 'Generate Image')));
 };
 
 // Add this new component after the AITab component
@@ -202,25 +213,22 @@ const AITab = ({
  */
 const RegenerateAIImage = ({
   attributes,
-  setAttributes
+  setAttributes,
+  error,
+  setError,
+  isRegenerating,
+  setIsRegenerating,
+  lastUsedProvider
 }) => {
-  const [isRegenerating, setIsRegenerating] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
-  const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(null);
-  const [lastUsedProvider, setLastUsedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
-
-  // Fetch the last used provider when the component mounts
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useEffect)(() => {
-    const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
-    if (storedProvider) {
-      setLastUsedProvider(storedProvider);
-    }
-  }, []);
-
-  // Handler for regenerating the AI image
   const handleRegenerate = () => {
-    setIsRegenerating(true);
+    // Check if alt text exists and is not empty
+    if (!attributes.alt || attributes.alt.trim() === '') {
+      setError('Please provide alt text to use as the image generation prompt.');
+      return;
+    }
     setError(null);
-    generateImage(attributes.alt, lastUsedProvider, result => {
+    setIsRegenerating(true);
+    generateImage(attributes.alt.trim(), lastUsedProvider, result => {
       setIsRegenerating(false);
       if (result.error) {
         setError(result.error);
@@ -249,19 +257,41 @@ const RegenerateAIImage = ({
 
 // Add this new component after the RegenerateAIImage component
 /**
- * AIImageToolbar component for adding a new section to the paragraph toolbar.
- * @param {Object} props - Component props
+ * AIImageToolbar component for adding buttons to toolbars.
+ * This component now uses different icons for paragraph and image blocks.
  */
 const AIImageToolbar = ({
+  isGenerating,
+  onGenerateImage,
   isRegenerating,
-  onRegenerateImage
+  onRegenerateImage,
+  isTextSelected,
+  isImageBlock
 }) => {
-  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
-    icon: isRegenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null) : "update",
-    label: isRegenerating ? "Regenerating AI Image..." : "Regenerate AI Image",
-    onClick: onRegenerateImage,
-    disabled: isRegenerating
-  }));
+  // Custom art icon component for paragraph blocks
+  const ArtIcon = () => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Icon, {
+    icon: "art"
+  });
+  if (isImageBlock) {
+    // Render regenerate button with refresh icon for image blocks
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
+      icon: isRegenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null) : "update",
+      label: isRegenerating ? "Regenerating AI Image..." : "Regenerate AI Image",
+      onClick: onRegenerateImage,
+      disabled: isRegenerating
+    }));
+  } else if (isTextSelected) {
+    // Render generate button with art icon for paragraph blocks with selected text
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
+      icon: isGenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null) : ArtIcon,
+      label: isGenerating ? "Generating AI Image..." : "Generate AI Image",
+      onClick: onGenerateImage,
+      disabled: isGenerating
+    }));
+  }
+
+  // Return null if conditions are not met
+  return null;
 };
 
 // Modify the existing registerFormatType function
@@ -290,7 +320,15 @@ const AIImageToolbar = ({
     }, []);
     const handleGenerateImage = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useCallback)(() => {
       if (selectedBlock && selectedBlock.name === 'core/paragraph') {
-        const selectedText = value.text;
+        const selectedText = value.text.trim();
+
+        // Check if selected text exists and is not empty
+        if (!selectedText) {
+          wp.data.dispatch('core/notices').createErrorNotice('Please select some text to use as the image generation prompt.', {
+            type: 'snackbar'
+          });
+          return;
+        }
 
         // Create and insert a placeholder heading block with a message
         const placeholderBlock = wp.blocks.createBlock('core/heading', {
@@ -324,9 +362,13 @@ const AIImageToolbar = ({
         });
       }
     }, [selectedBlock, value.text, replaceBlocks, lastUsedProvider]);
+
+    // Check if there's any text selected
+    const isTextSelected = value.start !== value.end;
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__.BlockControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(AIImageToolbar, {
       isGenerating: isGenerating,
-      onGenerateImage: handleGenerateImage
+      onGenerateImage: handleGenerateImage,
+      isTextSelected: isTextSelected
     }));
   }
 });
@@ -349,6 +391,7 @@ const AIImageToolbar = ({
   return props => {
     const [isRegenerating, setIsRegenerating] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
     const [lastUsedProvider, setLastUsedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
+    const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(null);
     (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useEffect)(() => {
       const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
       if (storedProvider) {
@@ -356,10 +399,20 @@ const AIImageToolbar = ({
       }
     }, []);
     const handleRegenerateImage = () => {
+      // Check if alt text exists and is not empty
+      if (!props.attributes.alt || props.attributes.alt.trim() === '') {
+        setError('Please provide alt text to use as the image generation prompt.');
+        wp.data.dispatch('core/notices').createErrorNotice('Please provide alt text to use as the image generation prompt.', {
+          type: 'snackbar'
+        });
+        return;
+      }
+      setError(null);
       setIsRegenerating(true);
-      generateImage(props.attributes.alt, lastUsedProvider, result => {
+      generateImage(props.attributes.alt.trim(), lastUsedProvider, result => {
         setIsRegenerating(false);
         if (result.error) {
+          setError(result.error);
           console.error('Image regeneration failed:', result.error);
           wp.data.dispatch('core/notices').createErrorNotice('Failed to regenerate image: ' + result.error, {
             type: 'snackbar'
@@ -381,10 +434,16 @@ const AIImageToolbar = ({
       ...props
     }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__.BlockControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(AIImageToolbar, {
       isRegenerating: isRegenerating,
-      onRegenerateImage: handleRegenerateImage
+      onRegenerateImage: handleRegenerateImage,
+      isImageBlock: true
     })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__.InspectorControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(RegenerateAIImage, {
       attributes: props.attributes,
-      setAttributes: props.setAttributes
+      setAttributes: props.setAttributes,
+      error: error,
+      setError: setError,
+      isRegenerating: isRegenerating,
+      setIsRegenerating: setIsRegenerating,
+      lastUsedProvider: lastUsedProvider
     })));
   };
 });
