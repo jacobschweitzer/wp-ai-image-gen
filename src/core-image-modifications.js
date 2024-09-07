@@ -44,7 +44,8 @@ const generateImage = async (prompt, provider, callback) => {
             callback({
                 url: response.url,
                 alt: prompt,
-                id: response.id,
+                id: response.id || `ai-generated-${Date.now()}`, // Fallback ID if not provided
+                caption: '',
             });
         } else {
             // If the response doesn't contain a URL, throw an error
@@ -260,11 +261,16 @@ registerFormatType('wp-ai-image-gen/custom-format', {
             if (selectedBlock && selectedBlock.name === 'core/paragraph') {
                 const selectedText = value.text;
                 
-                // Set the generating state to true before starting the image generation.
+                // Create and insert an empty placeholder block
+                const placeholderBlock = wp.blocks.createBlock('core/paragraph', {
+                    content: 'Generating AI image...',
+                    className: 'wp-ai-image-gen-placeholder'
+                });
+                replaceBlocks(selectedBlock.clientId, [placeholderBlock, selectedBlock]);
+                
                 setIsGenerating(true);
                 
                 generateImage(selectedText, lastUsedProvider, (result) => {
-                    // Set the generating state back to false after the image generation is complete.
                     setIsGenerating(false);
                     
                     if (result.error) {
@@ -273,13 +279,17 @@ registerFormatType('wp-ai-image-gen/custom-format', {
                             'Failed to generate image: ' + result.error,
                             { type: 'snackbar' }
                         );
+                        // Remove the placeholder block if there's an error
+                        replaceBlocks(placeholderBlock.clientId, []);
                     } else {
                         const imageBlock = wp.blocks.createBlock('core/image', {
                             url: result.url,
                             alt: result.alt,
-                            caption: '', // Set an empty caption to prevent automatic caption generation.
+                            caption: '',
+                            id: result.id || `ai-generated-${Date.now()}`, // Ensure ID is set
                         });
-                        replaceBlocks(selectedBlock.clientId, [imageBlock, selectedBlock]);
+                        // Replace the placeholder block with the new image block
+                        replaceBlocks(placeholderBlock.clientId, [imageBlock]);
                     }
                 });
             }
