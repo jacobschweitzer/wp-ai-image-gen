@@ -17,8 +17,19 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_2__);
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var _wordpress_rich_text__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @wordpress/rich-text */ "@wordpress/rich-text");
+/* harmony import */ var _wordpress_rich_text__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_wordpress_rich_text__WEBPACK_IMPORTED_MODULE_4__);
+/* harmony import */ var _wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @wordpress/block-editor */ "@wordpress/block-editor");
+/* harmony import */ var _wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__);
+/* harmony import */ var _wordpress_data__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @wordpress/data */ "@wordpress/data");
+/* harmony import */ var _wordpress_data__WEBPACK_IMPORTED_MODULE_6___default = /*#__PURE__*/__webpack_require__.n(_wordpress_data__WEBPACK_IMPORTED_MODULE_6__);
 
 // Import necessary WordPress components and hooks
+
+
+
+
+
 
 
 
@@ -43,34 +54,49 @@ const fetchProviders = async () => {
 };
 
 /**
- * Generates an AI image based on the given prompt and provider
- * @param {string} prompt - The text prompt for image generation
- * @param {string} provider - The selected provider ID
- * @param {function} callback - Function to handle the generated image data
+ * Generates an AI image based on the given prompt and provider.
+ * @param {string} prompt - The text prompt for image generation.
+ * @param {string} provider - The selected provider ID.
+ * @param {function} callback - Function to handle the generated image data.
  */
-const generateImage = (prompt, provider, callback) => {
-  // Call the WordPress API to generate the image
-  wp.apiFetch({
-    path: '/wp-ai-image-gen/v1/generate-image',
-    method: 'POST',
-    data: {
-      prompt,
-      provider
-    }
-  }).then(response => {
+const generateImage = async (prompt, provider, callback) => {
+  try {
+    // Call the WordPress API to generate the image
+    const response = await wp.apiFetch({
+      path: '/wp-ai-image-gen/v1/generate-image',
+      method: 'POST',
+      data: {
+        prompt,
+        provider
+      }
+    });
+
     // If the response contains a valid URL, call the callback with image data
     if (response && response.url) {
       callback({
         url: response.url,
         alt: prompt,
-        id: response.id
+        id: response.id || `ai-generated-${Date.now()}`,
+        // Fallback ID if not provided
+        caption: ''
       });
+    } else {
+      // Check for NSFW content error
+      if (response && response.error && response.error.includes('NSFW content')) {
+        throw new Error('The image could not be generated due to potential inappropriate content. Please try a different prompt.');
+      } else {
+        throw new Error('Invalid response from server: ' + JSON.stringify(response));
+      }
     }
-  }).catch(error => {
-    // Log any errors and call the callback with null
-    console.error('Error fetching image:', error);
-    callback(null);
-  });
+  } catch (error) {
+    // Log the detailed error and call the callback with an error object
+    console.error('Detailed error in generateImage:', error);
+    if (error.message) console.error('Error message:', error.message);
+    if (error.stack) console.error('Error stack:', error.stack);
+    callback({
+      error: error.message || 'Unknown error occurred'
+    });
+  }
 };
 
 /**
@@ -99,6 +125,7 @@ const AITab = ({
         setError(result.error);
       } else {
         setProviders(result);
+
         // Retrieve the last used provider from local storage
         const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
         if (storedProvider && result[storedProvider]) {
@@ -122,11 +149,22 @@ const AITab = ({
 
   // Handler for image generation
   const handleGenerate = () => {
+    // Check if the prompt is empty or only whitespace
+    if (!prompt.trim()) {
+      setError('Please enter a prompt for image generation.');
+      return;
+    }
     setIsLoading(true);
-    generateImage(prompt, selectedProvider, media => {
-      onSelect(media);
-      setIsLoading(false);
-      setIsModalOpen(false);
+    setError(null); // Clear any previous errors
+    generateImage(prompt.trim(), selectedProvider, media => {
+      if (media.error) {
+        setError(media.error);
+        setIsLoading(false);
+      } else {
+        onSelect(media);
+        setIsLoading(false);
+        setIsModalOpen(false);
+      }
     });
   };
 
@@ -144,25 +182,139 @@ const AITab = ({
   }, "Generate AI Image")), isModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Modal, {
     title: "WP AI Image Gen",
     onRequestClose: () => setIsModalOpen(false)
-  }, error ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
+  }, error && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
     style: {
       color: 'red'
     }
-  }, error) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, providerOptions.length > 1 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.SelectControl, {
+  }, error), providerOptions.length > 1 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.SelectControl, {
     label: "Select Provider",
     value: selectedProvider,
     options: providerOptions,
     onChange: setSelectedProvider
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.TextControl, {
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.TextareaControl, {
     label: "Enter your image prompt",
     value: prompt,
-    onChange: setPrompt
+    onChange: setPrompt,
+    rows: 4
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Button, {
     variant: "primary",
     onClick: handleGenerate,
-    disabled: isLoading || !selectedProvider || Object.keys(providers).length === 0
-  }, isLoading ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null), "Generating...") : 'Generate Image'))));
+    disabled: isLoading || !selectedProvider || !prompt.trim()
+  }, isLoading ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null), "Generating...") : 'Generate Image')));
 };
+
+/**
+ * AIImageToolbar component for adding buttons to toolbars.
+ * This component now handles both paragraph and image block buttons.
+ */
+const AIImageToolbar = ({
+  isGenerating,
+  onGenerateImage,
+  isRegenerating,
+  onRegenerateImage,
+  isImageBlock,
+  isTextSelected
+}) => {
+  if (isImageBlock) {
+    // Render regenerate button with refresh icon for image blocks
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
+      icon: isRegenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null) : "update",
+      label: isRegenerating ? "Regenerating AI Image..." : "Regenerate AI Image",
+      onClick: onRegenerateImage,
+      disabled: isRegenerating
+    }));
+  } else if (isTextSelected) {
+    // Render generate button for paragraph blocks when text is selected
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
+      icon: isGenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null) : "format-image",
+      label: isGenerating ? "Generating AI Image..." : "Generate AI Image",
+      onClick: onGenerateImage,
+      disabled: isGenerating
+    }));
+  }
+
+  // Return null if conditions are not met
+  return null;
+};
+
+// Modify the existing registerFormatType function
+(0,_wordpress_rich_text__WEBPACK_IMPORTED_MODULE_4__.registerFormatType)('wp-ai-image-gen/custom-format', {
+  title: 'AI Image Gen',
+  tagName: 'span',
+  className: 'wp-ai-image-gen-format',
+  edit: ({
+    isActive,
+    value,
+    onChange
+  }) => {
+    const [lastUsedProvider, setLastUsedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
+    const [isGenerating, setIsGenerating] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
+    const selectedBlock = (0,_wordpress_data__WEBPACK_IMPORTED_MODULE_6__.useSelect)(select => select('core/block-editor').getSelectedBlock(), []);
+    const {
+      replaceBlocks
+    } = (0,_wordpress_data__WEBPACK_IMPORTED_MODULE_6__.useDispatch)('core/block-editor');
+
+    // Fetch the last used provider from localStorage when the component mounts
+    (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useEffect)(() => {
+      const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
+      if (storedProvider) {
+        setLastUsedProvider(storedProvider);
+      }
+    }, []);
+    const handleGenerateImage = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useCallback)(() => {
+      if (selectedBlock && selectedBlock.name === 'core/paragraph') {
+        const selectedText = value.text.slice(value.start, value.end).trim();
+
+        // Check if selected text exists and is not empty
+        if (!selectedText) {
+          wp.data.dispatch('core/notices').createErrorNotice('Please select some text to use as the image generation prompt.', {
+            type: 'snackbar'
+          });
+          return;
+        }
+
+        // Create and insert a placeholder heading block with a message
+        const placeholderBlock = wp.blocks.createBlock('core/heading', {
+          content: 'Generating AI image...',
+          level: 2,
+          style: {
+            textAlign: 'center'
+          }
+        });
+        replaceBlocks(selectedBlock.clientId, [placeholderBlock, selectedBlock]);
+        setIsGenerating(true);
+        generateImage(selectedText, lastUsedProvider, result => {
+          setIsGenerating(false);
+          if (result.error) {
+            console.error('Image generation failed:', result.error);
+            wp.data.dispatch('core/notices').createErrorNotice('Failed to generate image: ' + result.error, {
+              type: 'snackbar'
+            });
+            // Remove the placeholder block if there's an error
+            replaceBlocks(placeholderBlock.clientId, []);
+          } else {
+            const imageBlock = wp.blocks.createBlock('core/image', {
+              url: result.url,
+              alt: result.alt,
+              caption: '',
+              id: result.id || `ai-generated-${Date.now()}` // Ensure ID is set
+            });
+            // Replace the placeholder block with the new image block
+            replaceBlocks(placeholderBlock.clientId, [imageBlock]);
+          }
+        });
+      }
+    }, [selectedBlock, value.text, value.start, value.end, replaceBlocks, lastUsedProvider]);
+
+    // Check if there's any text selected
+    const isTextSelected = value.start !== value.end;
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__.BlockControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(AIImageToolbar, {
+      isGenerating: isGenerating,
+      onGenerateImage: handleGenerateImage,
+      isTextSelected: isTextSelected
+    }));
+  }
+});
 
 // Add the AI tab to the media modal using WordPress filter
 (0,_wordpress_hooks__WEBPACK_IMPORTED_MODULE_1__.addFilter)('editor.MediaUpload', 'wp-ai-image-gen/add-ai-tab', OriginalMediaUpload => {
@@ -174,6 +326,57 @@ const AITab = ({
         onSelect: props.onSelect
       }))
     });
+  };
+});
+
+// Modify the existing addFilter function at the end of the file
+(0,_wordpress_hooks__WEBPACK_IMPORTED_MODULE_1__.addFilter)('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', BlockEdit => {
+  return props => {
+    const [isRegenerating, setIsRegenerating] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
+    const [lastUsedProvider, setLastUsedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
+    const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(null);
+    (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useEffect)(() => {
+      const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
+      if (storedProvider) {
+        setLastUsedProvider(storedProvider);
+      }
+    }, []);
+    const handleRegenerateImage = () => {
+      // Check if alt text exists and is not empty
+      if (!props.attributes.alt || props.attributes.alt.trim() === '') {
+        wp.data.dispatch('core/notices').createErrorNotice('Please provide alt text to use as the image generation prompt.', {
+          type: 'snackbar'
+        });
+        return;
+      }
+      setIsRegenerating(true);
+      generateImage(props.attributes.alt.trim(), lastUsedProvider, result => {
+        setIsRegenerating(false);
+        if (result.error) {
+          console.error('Image regeneration failed:', result.error);
+          wp.data.dispatch('core/notices').createErrorNotice('Failed to regenerate image: ' + result.error, {
+            type: 'snackbar'
+          });
+        } else {
+          props.setAttributes({
+            url: result.url,
+            id: result.id || `ai-generated-${Date.now()}`
+          });
+        }
+      });
+    };
+    if (props.name !== 'core/image') {
+      return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(BlockEdit, {
+        ...props
+      });
+    }
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(BlockEdit, {
+      ...props
+    }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__.BlockControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(AIImageToolbar, {
+      isRegenerating: isRegenerating,
+      onRegenerateImage: handleRegenerateImage,
+      isImageBlock: true
+    })));
   };
 });
 
@@ -189,6 +392,16 @@ module.exports = window["React"];
 
 /***/ }),
 
+/***/ "@wordpress/block-editor":
+/*!*************************************!*\
+  !*** external ["wp","blockEditor"] ***!
+  \*************************************/
+/***/ ((module) => {
+
+module.exports = window["wp"]["blockEditor"];
+
+/***/ }),
+
 /***/ "@wordpress/components":
 /*!************************************!*\
   !*** external ["wp","components"] ***!
@@ -196,6 +409,16 @@ module.exports = window["React"];
 /***/ ((module) => {
 
 module.exports = window["wp"]["components"];
+
+/***/ }),
+
+/***/ "@wordpress/data":
+/*!******************************!*\
+  !*** external ["wp","data"] ***!
+  \******************************/
+/***/ ((module) => {
+
+module.exports = window["wp"]["data"];
 
 /***/ }),
 
@@ -216,6 +439,16 @@ module.exports = window["wp"]["element"];
 /***/ ((module) => {
 
 module.exports = window["wp"]["hooks"];
+
+/***/ }),
+
+/***/ "@wordpress/rich-text":
+/*!**********************************!*\
+  !*** external ["wp","richText"] ***!
+  \**********************************/
+/***/ ((module) => {
+
+module.exports = window["wp"]["richText"];
 
 /***/ })
 
