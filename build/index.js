@@ -281,7 +281,8 @@ const RegenerateAIImage = ({
             console.log('Image generated successfully:', result);
             const imageBlock = wp.blocks.createBlock('core/image', {
               url: result.url,
-              alt: result.alt
+              alt: result.alt,
+              caption: '' // Set an empty caption to prevent automatic caption generation.
             });
             replaceBlocks(selectedBlock.clientId, [imageBlock, selectedBlock]);
           }

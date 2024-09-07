@@ -276,6 +276,7 @@ registerFormatType('wp-ai-image-gen/custom-format', {
                         const imageBlock = wp.blocks.createBlock('core/image', {
                             url: result.url,
                             alt: result.alt,
+                            caption: '', // Set an empty caption to prevent automatic caption generation.
                         });
                         replaceBlocks(selectedBlock.clientId, [imageBlock, selectedBlock]);
                     }
