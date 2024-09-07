@@ -193,10 +193,11 @@ const AITab = ({
     value: selectedProvider,
     options: providerOptions,
     onChange: setSelectedProvider
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.TextControl, {
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.TextareaControl, {
     label: "Enter your image prompt",
     value: prompt,
-    onChange: setPrompt
+    onChange: setPrompt,
+    rows: 4
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Button, {
     variant: "primary",
     onClick: handleGenerate,
@@ -204,74 +205,18 @@ const AITab = ({
   }, isLoading ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null), "Generating...") : 'Generate Image')));
 };
 
-// Add this new component after the AITab component
-/**
- * RegenerateAIImage component for regenerating AI images in the core image block.
- * @param {Object} props - Component props
- * @param {Object} props.attributes - Block attributes
- * @param {function} props.setAttributes - Function to update block attributes
- */
-const RegenerateAIImage = ({
-  attributes,
-  setAttributes,
-  error,
-  setError,
-  isRegenerating,
-  setIsRegenerating,
-  lastUsedProvider
-}) => {
-  const handleRegenerate = () => {
-    // Check if alt text exists and is not empty
-    if (!attributes.alt || attributes.alt.trim() === '') {
-      setError('Please provide alt text to use as the image generation prompt.');
-      return;
-    }
-    setError(null);
-    setIsRegenerating(true);
-    generateImage(attributes.alt.trim(), lastUsedProvider, result => {
-      setIsRegenerating(false);
-      if (result.error) {
-        setError(result.error);
-        console.error('Image regeneration failed:', result.error);
-      } else {
-        setAttributes({
-          url: result.url,
-          id: result.id
-        });
-      }
-    });
-  };
-  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.PanelBody, {
-    title: "WP AI Image Gen"
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Button, {
-    variant: "secondary",
-    onClick: handleRegenerate,
-    disabled: isRegenerating || !lastUsedProvider,
-    isBusy: isRegenerating
-  }, isRegenerating ? 'Regenerating...' : 'Regenerate AI Image'), error && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
-    style: {
-      color: 'red'
-    }
-  }, error));
-};
-
-// Add this new component after the RegenerateAIImage component
 /**
  * AIImageToolbar component for adding buttons to toolbars.
- * This component now uses different icons for paragraph and image blocks.
+ * This component now handles both paragraph and image block buttons.
  */
 const AIImageToolbar = ({
   isGenerating,
   onGenerateImage,
   isRegenerating,
   onRegenerateImage,
-  isTextSelected,
-  isImageBlock
+  isImageBlock,
+  isTextSelected
 }) => {
-  // Custom art icon component for paragraph blocks
-  const ArtIcon = () => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Icon, {
-    icon: "art"
-  });
   if (isImageBlock) {
     // Render regenerate button with refresh icon for image blocks
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
@@ -281,9 +226,9 @@ const AIImageToolbar = ({
       disabled: isRegenerating
     }));
   } else if (isTextSelected) {
-    // Render generate button with art icon for paragraph blocks with selected text
+    // Render generate button for paragraph blocks when text is selected
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
-      icon: isGenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null) : ArtIcon,
+      icon: isGenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null) : "format-image",
       label: isGenerating ? "Generating AI Image..." : "Generate AI Image",
       onClick: onGenerateImage,
       disabled: isGenerating
@@ -320,7 +265,7 @@ const AIImageToolbar = ({
     }, []);
     const handleGenerateImage = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useCallback)(() => {
       if (selectedBlock && selectedBlock.name === 'core/paragraph') {
-        const selectedText = value.text.trim();
+        const selectedText = value.text.slice(value.start, value.end).trim();
 
         // Check if selected text exists and is not empty
         if (!selectedText) {
@@ -361,7 +306,7 @@ const AIImageToolbar = ({
           }
         });
       }
-    }, [selectedBlock, value.text, replaceBlocks, lastUsedProvider]);
+    }, [selectedBlock, value.text, value.start, value.end, replaceBlocks, lastUsedProvider]);
 
     // Check if there's any text selected
     const isTextSelected = value.start !== value.end;
@@ -401,18 +346,15 @@ const AIImageToolbar = ({
     const handleRegenerateImage = () => {
       // Check if alt text exists and is not empty
       if (!props.attributes.alt || props.attributes.alt.trim() === '') {
-        setError('Please provide alt text to use as the image generation prompt.');
         wp.data.dispatch('core/notices').createErrorNotice('Please provide alt text to use as the image generation prompt.', {
           type: 'snackbar'
         });
         return;
       }
-      setError(null);
       setIsRegenerating(true);
       generateImage(props.attributes.alt.trim(), lastUsedProvider, result => {
         setIsRegenerating(false);
         if (result.error) {
-          setError(result.error);
           console.error('Image regeneration failed:', result.error);
           wp.data.dispatch('core/notices').createErrorNotice('Failed to regenerate image: ' + result.error, {
             type: 'snackbar'
@@ -436,14 +378,6 @@ const AIImageToolbar = ({
       isRegenerating: isRegenerating,
       onRegenerateImage: handleRegenerateImage,
       isImageBlock: true
-    })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__.InspectorControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(RegenerateAIImage, {
-      attributes: props.attributes,
-      setAttributes: props.setAttributes,
-      error: error,
-      setError: setError,
-      isRegenerating: isRegenerating,
-      setIsRegenerating: setIsRegenerating,
-      lastUsedProvider: lastUsedProvider
     })));
   };
 });

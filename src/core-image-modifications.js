@@ -1,7 +1,7 @@
 // Import necessary WordPress components and hooks
 import { addFilter } from '@wordpress/hooks';
 import { useState, useEffect } from '@wordpress/element';
-import { Button, TextControl, Modal, Spinner, SelectControl, ToolbarButton, Icon } from '@wordpress/components';
+import { Button, TextareaControl, Modal, Spinner, SelectControl, ToolbarButton, Icon } from '@wordpress/components';
 import { registerFormatType, toggleFormat } from '@wordpress/rich-text';
 import { BlockControls } from '@wordpress/block-editor';
 import { useSelect, useDispatch } from '@wordpress/data';
@@ -166,10 +166,11 @@ const AITab = ({ onSelect }) => {
                         />
                     )}
                     {/* Input field for the image prompt */}
-                    <TextControl
+                    <TextareaControl
                         label="Enter your image prompt"
                         value={prompt}
                         onChange={setPrompt}
+                        rows={4}
                     />
                     {/* Button to trigger image generation */}
                     <Button
@@ -192,62 +193,11 @@ const AITab = ({ onSelect }) => {
     );
 };
 
-// Add this new component after the AITab component
-/**
- * RegenerateAIImage component for regenerating AI images in the core image block.
- * @param {Object} props - Component props
- * @param {Object} props.attributes - Block attributes
- * @param {function} props.setAttributes - Function to update block attributes
- */
-const RegenerateAIImage = ({ attributes, setAttributes, error, setError, isRegenerating, setIsRegenerating, lastUsedProvider }) => {
-    const handleRegenerate = () => {
-        // Check if alt text exists and is not empty
-        if (!attributes.alt || attributes.alt.trim() === '') {
-            setError('Please provide alt text to use as the image generation prompt.');
-            return;
-        }
-
-        setError(null);
-        setIsRegenerating(true);
-        
-        generateImage(attributes.alt.trim(), lastUsedProvider, (result) => {
-            setIsRegenerating(false);
-            if (result.error) {
-                setError(result.error);
-                console.error('Image regeneration failed:', result.error);
-            } else {
-                setAttributes({
-                    url: result.url,
-                    id: result.id,
-                });
-            }
-        });
-    };
-
-    return (
-        <PanelBody title="WP AI Image Gen">
-            <Button
-                variant="secondary"
-                onClick={handleRegenerate}
-                disabled={isRegenerating || !lastUsedProvider}
-                isBusy={isRegenerating}
-            >
-                {isRegenerating ? 'Regenerating...' : 'Regenerate AI Image'}
-            </Button>
-            {error && <p style={{ color: 'red' }}>{error}</p>}
-        </PanelBody>
-    );
-};
-
-// Add this new component after the RegenerateAIImage component
 /**
  * AIImageToolbar component for adding buttons to toolbars.
- * This component now uses different icons for paragraph and image blocks.
+ * This component now handles both paragraph and image block buttons.
  */
-const AIImageToolbar = ({ isGenerating, onGenerateImage, isRegenerating, onRegenerateImage, isTextSelected, isImageBlock }) => {
-    // Custom art icon component for paragraph blocks
-    const ArtIcon = () => <Icon icon="art" />;
-
+const AIImageToolbar = ({ isGenerating, onGenerateImage, isRegenerating, onRegenerateImage, isImageBlock, isTextSelected }) => {
     if (isImageBlock) {
         // Render regenerate button with refresh icon for image blocks
         return (
@@ -261,11 +211,11 @@ const AIImageToolbar = ({ isGenerating, onGenerateImage, isRegenerating, onRegen
             </ToolbarGroup>
         );
     } else if (isTextSelected) {
-        // Render generate button with art icon for paragraph blocks with selected text
+        // Render generate button for paragraph blocks when text is selected
         return (
             <ToolbarGroup>
                 <ToolbarButton
-                    icon={isGenerating ? <Spinner /> : ArtIcon}
+                    icon={isGenerating ? <Spinner /> : "format-image"}
                     label={isGenerating ? "Generating AI Image..." : "Generate AI Image"}
                     onClick={onGenerateImage}
                     disabled={isGenerating}
@@ -303,7 +253,7 @@ registerFormatType('wp-ai-image-gen/custom-format', {
 
         const handleGenerateImage = useCallback(() => {
             if (selectedBlock && selectedBlock.name === 'core/paragraph') {
-                const selectedText = value.text.trim();
+                const selectedText = value.text.slice(value.start, value.end).trim();
                 
                 // Check if selected text exists and is not empty
                 if (!selectedText) {
@@ -349,7 +299,7 @@ registerFormatType('wp-ai-image-gen/custom-format', {
                     }
                 });
             }
-        }, [selectedBlock, value.text, replaceBlocks, lastUsedProvider]);
+        }, [selectedBlock, value.text, value.start, value.end, replaceBlocks, lastUsedProvider]);
 
         // Check if there's any text selected
         const isTextSelected = value.start !== value.end;
@@ -403,7 +353,6 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
         const handleRegenerateImage = () => {
             // Check if alt text exists and is not empty
             if (!props.attributes.alt || props.attributes.alt.trim() === '') {
-                setError('Please provide alt text to use as the image generation prompt.');
                 wp.data.dispatch('core/notices').createErrorNotice(
                     'Please provide alt text to use as the image generation prompt.',
                     { type: 'snackbar' }
@@ -411,12 +360,10 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
                 return;
             }
 
-            setError(null);
             setIsRegenerating(true);
             generateImage(props.attributes.alt.trim(), lastUsedProvider, (result) => {
                 setIsRegenerating(false);
                 if (result.error) {
-                    setError(result.error);
                     console.error('Image regeneration failed:', result.error);
                     wp.data.dispatch('core/notices').createErrorNotice(
                         'Failed to regenerate image: ' + result.error,
@@ -445,17 +392,6 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
                         isImageBlock={true}
                     />
                 </BlockControls>
-                <InspectorControls>
-                    <RegenerateAIImage
-                        attributes={props.attributes}
-                        setAttributes={props.setAttributes}
-                        error={error}
-                        setError={setError}
-                        isRegenerating={isRegenerating}
-                        setIsRegenerating={setIsRegenerating}
-                        lastUsedProvider={lastUsedProvider}
-                    />
-                </InspectorControls>
             </>
         );
     };
