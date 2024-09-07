@@ -17,8 +17,18 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_2__);
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var _wordpress_rich_text__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @wordpress/rich-text */ "@wordpress/rich-text");
+/* harmony import */ var _wordpress_rich_text__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_wordpress_rich_text__WEBPACK_IMPORTED_MODULE_4__);
+/* harmony import */ var _wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @wordpress/block-editor */ "@wordpress/block-editor");
+/* harmony import */ var _wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__);
+/* harmony import */ var _wordpress_data__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @wordpress/data */ "@wordpress/data");
+/* harmony import */ var _wordpress_data__WEBPACK_IMPORTED_MODULE_6___default = /*#__PURE__*/__webpack_require__.n(_wordpress_data__WEBPACK_IMPORTED_MODULE_6__);
 
 // Import necessary WordPress components and hooks
+
+
+
+
 
 
 
@@ -43,21 +53,26 @@ const fetchProviders = async () => {
 };
 
 /**
- * Generates an AI image based on the given prompt and provider
- * @param {string} prompt - The text prompt for image generation
- * @param {string} provider - The selected provider ID
- * @param {function} callback - Function to handle the generated image data
+ * Generates an AI image based on the given prompt and provider.
+ * @param {string} prompt - The text prompt for image generation.
+ * @param {string} provider - The selected provider ID.
+ * @param {function} callback - Function to handle the generated image data.
  */
-const generateImage = (prompt, provider, callback) => {
-  // Call the WordPress API to generate the image
-  wp.apiFetch({
-    path: '/wp-ai-image-gen/v1/generate-image',
-    method: 'POST',
-    data: {
-      prompt,
-      provider
-    }
-  }).then(response => {
+const generateImage = async (prompt, provider, callback) => {
+  try {
+    console.log('Generating image with prompt:', prompt, 'and provider:', provider);
+
+    // Call the WordPress API to generate the image
+    const response = await wp.apiFetch({
+      path: '/wp-ai-image-gen/v1/generate-image',
+      method: 'POST',
+      data: {
+        prompt,
+        provider
+      }
+    });
+    console.log('Raw API response:', response);
+
     // If the response contains a valid URL, call the callback with image data
     if (response && response.url) {
       callback({
@@ -65,12 +80,19 @@ const generateImage = (prompt, provider, callback) => {
         alt: prompt,
         id: response.id
       });
+    } else {
+      // If the response doesn't contain a URL, throw an error
+      throw new Error('Invalid response from server: ' + JSON.stringify(response));
     }
-  }).catch(error => {
-    // Log any errors and call the callback with null
-    console.error('Error fetching image:', error);
-    callback(null);
-  });
+  } catch (error) {
+    // Log the detailed error and call the callback with an error object
+    console.error('Detailed error in generateImage:', error);
+    if (error.message) console.error('Error message:', error.message);
+    if (error.stack) console.error('Error stack:', error.stack);
+    callback({
+      error: error.message || 'Unknown error occurred'
+    });
+  }
 };
 
 /**
@@ -99,6 +121,7 @@ const AITab = ({
         setError(result.error);
       } else {
         setProviders(result);
+
         // Retrieve the last used provider from local storage
         const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
         if (storedProvider && result[storedProvider]) {
@@ -164,6 +187,66 @@ const AITab = ({
   }, isLoading ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null), "Generating...") : 'Generate Image'))));
 };
 
+// Register the custom format type for AI image generation from selected text
+(0,_wordpress_rich_text__WEBPACK_IMPORTED_MODULE_4__.registerFormatType)('wp-ai-image-gen/custom-format', {
+  title: 'AI Image Gen',
+  tagName: 'span',
+  className: 'wp-ai-image-gen-format',
+  edit: ({
+    isActive,
+    value,
+    onChange
+  }) => {
+    const [lastUsedProvider, setLastUsedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
+    const selectedBlock = (0,_wordpress_data__WEBPACK_IMPORTED_MODULE_6__.useSelect)(select => select('core/block-editor').getSelectedBlock(), []);
+    const {
+      replaceBlocks
+    } = (0,_wordpress_data__WEBPACK_IMPORTED_MODULE_6__.useDispatch)('core/block-editor');
+
+    // Fetch the last used provider from localStorage when the component mounts
+    (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useEffect)(() => {
+      const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
+      if (storedProvider) {
+        setLastUsedProvider(storedProvider);
+      }
+    }, []);
+    const handleGenerateImage = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useCallback)(() => {
+      if (selectedBlock && selectedBlock.name === 'core/paragraph') {
+        const selectedText = value.text;
+        console.log('Selected text:', selectedText);
+        console.log('Using provider:', lastUsedProvider);
+        generateImage(selectedText, lastUsedProvider, result => {
+          if (result.error) {
+            console.error('Image generation failed:', result.error);
+            wp.data.dispatch('core/notices').createErrorNotice('Failed to generate image: ' + result.error, {
+              type: 'snackbar'
+            });
+          } else {
+            console.log('Image generated successfully:', result);
+            const imageBlock = wp.blocks.createBlock('core/image', {
+              url: result.url,
+              alt: result.alt,
+              caption: selectedText
+            });
+            replaceBlocks(selectedBlock.clientId, [imageBlock, selectedBlock]);
+          }
+        });
+      } else {
+        console.log('No paragraph block selected');
+      }
+    }, [selectedBlock, value.text, replaceBlocks, lastUsedProvider]);
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__.BlockControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
+      icon: "art",
+      title: "Generate AI Image",
+      onClick: handleGenerateImage,
+      isActive: isActive
+    }));
+  }
+});
+
+// Log that the script has loaded
+console.log('WP AI Image Gen: Script loaded');
+
 // Add the AI tab to the media modal using WordPress filter
 (0,_wordpress_hooks__WEBPACK_IMPORTED_MODULE_1__.addFilter)('editor.MediaUpload', 'wp-ai-image-gen/add-ai-tab', OriginalMediaUpload => {
   // Return a new component that wraps the original MediaUpload
@@ -189,6 +272,16 @@ module.exports = window["React"];
 
 /***/ }),
 
+/***/ "@wordpress/block-editor":
+/*!*************************************!*\
+  !*** external ["wp","blockEditor"] ***!
+  \*************************************/
+/***/ ((module) => {
+
+module.exports = window["wp"]["blockEditor"];
+
+/***/ }),
+
 /***/ "@wordpress/components":
 /*!************************************!*\
   !*** external ["wp","components"] ***!
@@ -196,6 +289,16 @@ module.exports = window["React"];
 /***/ ((module) => {
 
 module.exports = window["wp"]["components"];
+
+/***/ }),
+
+/***/ "@wordpress/data":
+/*!******************************!*\
+  !*** external ["wp","data"] ***!
+  \******************************/
+/***/ ((module) => {
+
+module.exports = window["wp"]["data"];
 
 /***/ }),
 
@@ -216,6 +319,16 @@ module.exports = window["wp"]["element"];
 /***/ ((module) => {
 
 module.exports = window["wp"]["hooks"];
+
+/***/ }),
+
+/***/ "@wordpress/rich-text":
+/*!**********************************!*\
+  !*** external ["wp","richText"] ***!
+  \**********************************/
+/***/ ((module) => {
+
+module.exports = window["wp"]["richText"];
 
 /***/ })
 

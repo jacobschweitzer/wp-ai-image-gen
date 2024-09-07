@@ -1,7 +1,11 @@
 // Import necessary WordPress components and hooks
 import { addFilter } from '@wordpress/hooks';
 import { useState, useEffect } from '@wordpress/element';
-import { Button, TextControl, Modal, Spinner, SelectControl } from '@wordpress/components';
+import { Button, TextControl, Modal, Spinner, SelectControl, ToolbarButton } from '@wordpress/components';
+import { registerFormatType, toggleFormat } from '@wordpress/rich-text';
+import { BlockControls } from '@wordpress/block-editor';
+import { useSelect, useDispatch } from '@wordpress/data';
+import { useCallback } from '@wordpress/element';
 
 /**
  * Fetches available providers from the server.
@@ -19,33 +23,42 @@ const fetchProviders = async () => {
 };
 
 /**
- * Generates an AI image based on the given prompt and provider
- * @param {string} prompt - The text prompt for image generation
- * @param {string} provider - The selected provider ID
- * @param {function} callback - Function to handle the generated image data
+ * Generates an AI image based on the given prompt and provider.
+ * @param {string} prompt - The text prompt for image generation.
+ * @param {string} provider - The selected provider ID.
+ * @param {function} callback - Function to handle the generated image data.
  */
-const generateImage = (prompt, provider, callback) => {
-    // Call the WordPress API to generate the image
-    wp.apiFetch({
-        path: '/wp-ai-image-gen/v1/generate-image',
-        method: 'POST',
-        data: { prompt, provider },
-    })
-        .then((response) => {
-            // If the response contains a valid URL, call the callback with image data
-            if (response && response.url) {
-                callback({
-                    url: response.url,
-                    alt: prompt,
-                    id: response.id,
-                });
-            }
-        })
-        .catch((error) => {
-            // Log any errors and call the callback with null
-            console.error('Error fetching image:', error);
-            callback(null);
+const generateImage = async (prompt, provider, callback) => {
+    try {
+        console.log('Generating image with prompt:', prompt, 'and provider:', provider);
+        
+        // Call the WordPress API to generate the image
+        const response = await wp.apiFetch({
+            path: '/wp-ai-image-gen/v1/generate-image',
+            method: 'POST',
+            data: { prompt, provider },
         });
+
+        console.log('Raw API response:', response);
+
+        // If the response contains a valid URL, call the callback with image data
+        if (response && response.url) {
+            callback({
+                url: response.url,
+                alt: prompt,
+                id: response.id,
+            });
+        } else {
+            // If the response doesn't contain a URL, throw an error
+            throw new Error('Invalid response from server: ' + JSON.stringify(response));
+        }
+    } catch (error) {
+        // Log the detailed error and call the callback with an error object
+        console.error('Detailed error in generateImage:', error);
+        if (error.message) console.error('Error message:', error.message);
+        if (error.stack) console.error('Error stack:', error.stack);
+        callback({ error: error.message || 'Unknown error occurred' });
+    }
 };
 
 /**
@@ -72,6 +85,7 @@ const AITab = ({ onSelect }) => {
                 setError(result.error);
             } else {
                 setProviders(result);
+            
                 // Retrieve the last used provider from local storage
                 const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
                 if (storedProvider && result[storedProvider]) {
@@ -166,6 +180,72 @@ const AITab = ({ onSelect }) => {
         </>
     );
 };
+
+// Register the custom format type for AI image generation from selected text
+registerFormatType('wp-ai-image-gen/custom-format', {
+    title: 'AI Image Gen',
+    tagName: 'span',
+    className: 'wp-ai-image-gen-format',
+    edit: ({ isActive, value, onChange }) => {
+        const [lastUsedProvider, setLastUsedProvider] = useState('');
+
+        const selectedBlock = useSelect(select => 
+            select('core/block-editor').getSelectedBlock()
+        , []);
+
+        const { replaceBlocks } = useDispatch('core/block-editor');
+
+        // Fetch the last used provider from localStorage when the component mounts
+        useEffect(() => {
+            const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
+            if (storedProvider) {
+                setLastUsedProvider(storedProvider);
+            }
+        }, []);
+
+        const handleGenerateImage = useCallback(() => {
+            if (selectedBlock && selectedBlock.name === 'core/paragraph') {
+                const selectedText = value.text;
+                console.log('Selected text:', selectedText);
+                console.log('Using provider:', lastUsedProvider);
+                
+                generateImage(selectedText, lastUsedProvider, (result) => {
+                    if (result.error) {
+                        console.error('Image generation failed:', result.error);
+                        wp.data.dispatch('core/notices').createErrorNotice(
+                            'Failed to generate image: ' + result.error,
+                            { type: 'snackbar' }
+                        );
+                    } else {
+                        console.log('Image generated successfully:', result);
+                        const imageBlock = wp.blocks.createBlock('core/image', {
+                            url: result.url,
+                            alt: result.alt,
+                            caption: selectedText
+                        });
+                        replaceBlocks(selectedBlock.clientId, [imageBlock, selectedBlock]);
+                    }
+                });
+            } else {
+                console.log('No paragraph block selected');
+            }
+        }, [selectedBlock, value.text, replaceBlocks, lastUsedProvider]);
+
+        return (
+            <BlockControls>
+                <ToolbarButton
+                    icon="art"
+                    title="Generate AI Image"
+                    onClick={handleGenerateImage}
+                    isActive={isActive}
+                />
+            </BlockControls>
+        );
+    },
+});
+
+// Log that the script has loaded
+console.log('WP AI Image Gen: Script loaded');
 
 // Add the AI tab to the media modal using WordPress filter
 addFilter('editor.MediaUpload', 'wp-ai-image-gen/add-ai-tab', (OriginalMediaUpload) => {
