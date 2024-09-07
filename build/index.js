@@ -62,8 +62,6 @@ const fetchProviders = async () => {
  */
 const generateImage = async (prompt, provider, callback) => {
   try {
-    console.log('Generating image with prompt:', prompt, 'and provider:', provider);
-
     // Call the WordPress API to generate the image
     const response = await wp.apiFetch({
       path: '/wp-ai-image-gen/v1/generate-image',
@@ -253,6 +251,7 @@ const RegenerateAIImage = ({
     onChange
   }) => {
     const [lastUsedProvider, setLastUsedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
+    const [isGenerating, setIsGenerating] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
     const selectedBlock = (0,_wordpress_data__WEBPACK_IMPORTED_MODULE_6__.useSelect)(select => select('core/block-editor').getSelectedBlock(), []);
     const {
       replaceBlocks
@@ -268,7 +267,12 @@ const RegenerateAIImage = ({
     const handleGenerateImage = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useCallback)(() => {
       if (selectedBlock && selectedBlock.name === 'core/paragraph') {
         const selectedText = value.text;
+
+        // Set the generating state to true before starting the image generation.
+        setIsGenerating(true);
         generateImage(selectedText, lastUsedProvider, result => {
+          // Set the generating state back to false after the image generation is complete.
+          setIsGenerating(false);
           if (result.error) {
             console.error('Image generation failed:', result.error);
             wp.data.dispatch('core/notices').createErrorNotice('Failed to generate image: ' + result.error, {
@@ -286,10 +290,11 @@ const RegenerateAIImage = ({
       }
     }, [selectedBlock, value.text, replaceBlocks, lastUsedProvider]);
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__.BlockControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
-      icon: "art",
-      title: "Generate AI Image",
+      icon: isGenerating ? "update" : "art",
+      title: isGenerating ? "Generating AI Image..." : "Generate AI Image",
       onClick: handleGenerateImage,
-      isActive: isActive
+      isActive: isActive,
+      disabled: isGenerating
     }));
   }
 });

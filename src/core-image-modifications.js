@@ -31,9 +31,7 @@ const fetchProviders = async () => {
  * @param {function} callback - Function to handle the generated image data.
  */
 const generateImage = async (prompt, provider, callback) => {
-    try {
-        console.log('Generating image with prompt:', prompt, 'and provider:', provider);
-        
+    try {        
         // Call the WordPress API to generate the image
         const response = await wp.apiFetch({
             path: '/wp-ai-image-gen/v1/generate-image',
@@ -242,6 +240,7 @@ registerFormatType('wp-ai-image-gen/custom-format', {
     className: 'wp-ai-image-gen-format',
     edit: ({ isActive, value, onChange }) => {
         const [lastUsedProvider, setLastUsedProvider] = useState('');
+        const [isGenerating, setIsGenerating] = useState(false);
 
         const selectedBlock = useSelect(select => 
             select('core/block-editor').getSelectedBlock()
@@ -261,7 +260,13 @@ registerFormatType('wp-ai-image-gen/custom-format', {
             if (selectedBlock && selectedBlock.name === 'core/paragraph') {
                 const selectedText = value.text;
                 
+                // Set the generating state to true before starting the image generation.
+                setIsGenerating(true);
+                
                 generateImage(selectedText, lastUsedProvider, (result) => {
+                    // Set the generating state back to false after the image generation is complete.
+                    setIsGenerating(false);
+                    
                     if (result.error) {
                         console.error('Image generation failed:', result.error);
                         wp.data.dispatch('core/notices').createErrorNotice(
@@ -283,10 +288,11 @@ registerFormatType('wp-ai-image-gen/custom-format', {
         return (
             <BlockControls>
                 <ToolbarButton
-                    icon="art"
-                    title="Generate AI Image"
+                    icon={isGenerating ? "update" : "art"}
+                    title={isGenerating ? "Generating AI Image..." : "Generate AI Image"}
                     onClick={handleGenerateImage}
                     isActive={isActive}
+                    disabled={isGenerating}
                 />
             </BlockControls>
         );
