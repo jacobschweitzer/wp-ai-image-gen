@@ -34,8 +34,6 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-
-
 /**
  * Fetches available providers from the server.
  * @returns {Promise<Object>} A promise that resolves to an object of provider IDs and names.

@@ -1,13 +1,11 @@
 // Import necessary WordPress components and hooks
 import { addFilter } from '@wordpress/hooks';
 import { useState, useEffect } from '@wordpress/element';
-import { Button, TextareaControl, Modal, Spinner, SelectControl, ToolbarButton, Icon } from '@wordpress/components';
-import { registerFormatType, toggleFormat } from '@wordpress/rich-text';
+import { Button, TextareaControl, Modal, Spinner, SelectControl, ToolbarButton } from '@wordpress/components';
+import { registerFormatType } from '@wordpress/rich-text';
 import { BlockControls } from '@wordpress/block-editor';
 import { useSelect, useDispatch } from '@wordpress/data';
 import { useCallback } from '@wordpress/element';
-import { InspectorControls } from '@wordpress/block-editor';
-import { PanelBody } from '@wordpress/components';
 import { ToolbarGroup } from '@wordpress/components';
 
 /**
