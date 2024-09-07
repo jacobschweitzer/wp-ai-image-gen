@@ -290,7 +290,7 @@ const RegenerateAIImage = ({
       }
     }, [selectedBlock, value.text, replaceBlocks, lastUsedProvider]);
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__.BlockControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
-      icon: isGenerating ? "update" : "art",
+      icon: isGenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null) : "art",
       title: isGenerating ? "Generating AI Image..." : "Generate AI Image",
       onClick: handleGenerateImage,
       isActive: isActive,

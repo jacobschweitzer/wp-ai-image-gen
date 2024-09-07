@@ -288,7 +288,7 @@ registerFormatType('wp-ai-image-gen/custom-format', {
         return (
             <BlockControls>
                 <ToolbarButton
-                    icon={isGenerating ? "update" : "art"}
+                    icon={isGenerating ? <Spinner /> : "art"}
                     title={isGenerating ? "Generating AI Image..." : "Generate AI Image"}
                     onClick={handleGenerateImage}
                     isActive={isActive}
