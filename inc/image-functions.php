@@ -87,12 +87,15 @@ function wp_ai_image_gen_upload_image($request, $image_url) {
     wp_ai_image_gen_debug_log("File size: $filesize bytes");
 
     // Prepare the attachment
-    $attachment = array(
+    
+    
+    $attachment = [
         'post_mime_type' => $filetype['type'],
-        'post_title' => sanitize_file_name($filename),
-        'post_content' => '',
-        'post_status' => 'inherit'
-    );
+        'post_title'     => sanitize_file_name($filename), // @todo - add an ai generated title to the post title
+        'post_content'   => '',
+        'post_status'    => 'inherit',
+        'post_excerpt'   => '', // @todo - add an ai generated caption to the post content
+    ];
 
     // Insert the attachment
     $attach_id = wp_insert_attachment($attachment, $upload['file']);
@@ -103,6 +106,9 @@ function wp_ai_image_gen_upload_image($request, $image_url) {
     }
 
     wp_ai_image_gen_debug_log("Attachment inserted successfully. ID: $attach_id");
+
+    // Set only the alt text
+    update_post_meta($attach_id, '_wp_attachment_image_alt', wp_strip_all_tags($request->get_param('prompt')));
 
     // Generate attachment metadata
     require_once(ABSPATH . 'wp-admin/includes/image.php');
