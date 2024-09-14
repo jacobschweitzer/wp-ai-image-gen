@@ -318,6 +318,9 @@ registerFormatType('wp-ai-image-gen/custom-format', {
 addFilter('editor.MediaUpload', 'wp-ai-image-gen/add-ai-tab', (OriginalMediaUpload) => {
     // Return a new component that wraps the original MediaUpload
     return (props) => {
+        // Check if the current block is a gallery block
+        const isGalleryBlock = props.allowedTypes && props.allowedTypes.includes('image') && props.multiple;
+
         return (
             <OriginalMediaUpload
                 {...props}
@@ -325,8 +328,8 @@ addFilter('editor.MediaUpload', 'wp-ai-image-gen/add-ai-tab', (OriginalMediaUplo
                     <>
                         {/* Render the original MediaUpload component */}
                         {props.render(originalProps)}
-                        {/* Add the AITab component */}
-                        <AITab onSelect={props.onSelect} />
+                        {/* Add the AITab component only if it's not a gallery block */}
+                        {!isGalleryBlock && <AITab onSelect={props.onSelect} />}
                     </>
                 )}
             />

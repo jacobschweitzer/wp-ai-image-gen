@@ -320,9 +320,11 @@ const AIImageToolbar = ({
 (0,_wordpress_hooks__WEBPACK_IMPORTED_MODULE_1__.addFilter)('editor.MediaUpload', 'wp-ai-image-gen/add-ai-tab', OriginalMediaUpload => {
   // Return a new component that wraps the original MediaUpload
   return props => {
+    // Check if the current block is a gallery block
+    const isGalleryBlock = props.allowedTypes && props.allowedTypes.includes('image') && props.multiple;
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(OriginalMediaUpload, {
       ...props,
-      render: originalProps => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, props.render(originalProps), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(AITab, {
+      render: originalProps => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, props.render(originalProps), !isGalleryBlock && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(AITab, {
         onSelect: props.onSelect
       }))
     });
