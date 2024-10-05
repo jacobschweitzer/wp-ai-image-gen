@@ -65,7 +65,7 @@ function wp_ai_image_gen_handle_request($request) {
 
     wp_ai_image_gen_debug_log("Starting image generation request");
     wp_ai_image_gen_debug_log("Prompt: $prompt, Provider: $provider");
-    wp_ai_image_gen_debug_log("Additional params: " . json_encode($additional_params));
+    wp_ai_image_gen_debug_log("Additional params: " . wp_json_encode($additional_params));
 
     $max_retries = 3;
     $retry_count = 0;
@@ -162,13 +162,13 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $additional_params
             )
         );
 
-        wp_ai_image_gen_debug_log("Sending request to Replicate API: " . json_encode($body));
+        wp_ai_image_gen_debug_log("Sending request to Replicate API: " . wp_json_encode($body));
 
         $response = wp_remote_post(
             "https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions",
             array(
                 'headers' => $headers,
-                'body' => json_encode($body),
+                'body' => wp_json_encode($body),
                 'timeout' => 30
             )
         );
@@ -180,7 +180,7 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $additional_params
         $body = json_decode(wp_remote_retrieve_body($response), true);
         
         if (!isset($body['id'])) {
-            throw new Exception('Failed to start prediction: ' . json_encode($body));
+            throw new Exception('Failed to start prediction: ' . wp_json_encode($body));
         }
 
         $prediction_id = $body['id'];
@@ -207,7 +207,7 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $additional_params
             if ($status_body['status'] === 'succeeded') {
                 return $status_body['output'];
             } elseif ($status_body['status'] === 'failed') {
-                throw new Exception('Prediction failed: ' . json_encode($status_body));
+                throw new Exception('Prediction failed: ' . wp_json_encode($status_body));
             }
 
             $attempt++;
@@ -254,13 +254,13 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $additional_params
          * This param is only supported for dall-e-3.
          */
 
-        wp_ai_image_gen_debug_log("Sending request to OpenAI API: " . json_encode($body));
+        wp_ai_image_gen_debug_log("Sending request to OpenAI API: " . wp_json_encode($body));
 
         $response = wp_remote_post(
             "https://api.openai.com/v1/images/generations",
             array(
                 'headers' => $headers,
-                'body' => json_encode($body),
+                'body' => wp_json_encode($body),
                 'timeout' => 30
             )
         );
@@ -272,7 +272,7 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $additional_params
         $body = json_decode(wp_remote_retrieve_body($response), true);
         
         if (!isset($body['data'][0]['url'])) {
-            throw new Exception('Failed to generate image: ' . json_encode($body));
+            throw new Exception('Failed to generate image: ' . wp_json_encode($body));
         }
 
         return array($body['data'][0]['url']);
@@ -292,7 +292,7 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $additional_params
  */
 function wp_ai_image_gen_process_api_response($provider, $response) {
     wp_ai_image_gen_debug_log("Processing API response for provider: $provider");
-    wp_ai_image_gen_debug_log("Response: " . json_encode($response));
+    wp_ai_image_gen_debug_log("Response: " . wp_json_encode($response));
 
     if ($provider === 'replicate') {
         // Validate that the response is an array of strings (URIs)
@@ -313,7 +313,7 @@ function wp_ai_image_gen_process_api_response($provider, $response) {
             return $image_url;
         } else {
             error_log("WP AI Image Gen Error: Invalid response format from OpenAI");
-            error_log("Expected an array with one string, got: " . json_encode($response));
+            error_log("Expected an array with one string, got: " . wp_json_encode($response));
             throw new Exception('Invalid response format from OpenAI');
         }
     }

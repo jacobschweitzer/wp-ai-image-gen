@@ -32,8 +32,6 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-
-
 /**
  * Fetches available providers from the server.
  * @returns {Promise<Object>} A promise that resolves to an object of provider IDs and names.
@@ -100,25 +98,27 @@ const generateImage = async (prompt, provider, callback) => {
 };
 
 /**
- * AITab component for generating AI images
- * @param {Object} props - Component props
- * @param {function} props.onSelect - Function to handle selected image
+ * AITab component for generating AI images.
+ *
+ * @param {Object} props - Component properties.
+ * @param {function} props.onSelect - Function to handle selected image.
+ * @param {boolean} props.shouldDisplay - Determines if the AITab should be displayed.
+ * @returns {JSX.Element|null} The AITab component or null.
  */
 const AITab = ({
-  onSelect
+  onSelect,
+  shouldDisplay
 }) => {
-  // State hooks for modal, prompt, loading status, providers, and selected provider
+  // State hooks for modal, prompt, loading status, providers, and selected provider.
   const [isModalOpen, setIsModalOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
   const [prompt, setPrompt] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
   const [isLoading, setIsLoading] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
   const [providers, setProviders] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)({});
   const [selectedProvider, setSelectedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
   const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(null);
-
-  // Add a new state hook for the last used provider
   const [lastUsedProvider, setLastUsedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
 
-  // Fetch providers and last used provider when component mounts
+  // Fetch providers and last used provider when component mounts.
   (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useEffect)(() => {
     fetchProviders().then(result => {
       if (result.error) {
@@ -126,20 +126,20 @@ const AITab = ({
       } else {
         setProviders(result);
 
-        // Retrieve the last used provider from local storage
+        // Retrieve the last used provider from local storage.
         const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
         if (storedProvider && result[storedProvider]) {
           setSelectedProvider(storedProvider);
           setLastUsedProvider(storedProvider);
         } else {
-          // If no stored provider or it's invalid, use the first available provider
+          // If no stored provider or it's invalid, use the first available provider.
           setSelectedProvider(Object.keys(result)[0]);
         }
       }
     });
   }, []);
 
-  // Update local storage when the selected provider changes
+  // Update local storage when the selected provider changes.
   (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useEffect)(() => {
     if (selectedProvider) {
       localStorage.setItem('wpAiImageGenLastProvider', selectedProvider);
@@ -147,15 +147,17 @@ const AITab = ({
     }
   }, [selectedProvider]);
 
-  // Handler for image generation
+  /**
+   * Handler for image generation.
+   */
   const handleGenerate = () => {
-    // Check if the prompt is empty or only whitespace
+    // Check if the prompt is empty or only whitespace.
     if (!prompt.trim()) {
       setError('Please enter a prompt for image generation.');
       return;
     }
     setIsLoading(true);
-    setError(null); // Clear any previous errors
+    setError(null); // Clear any previous errors.
     generateImage(prompt.trim(), selectedProvider, media => {
       if (media.error) {
         setError(media.error);
@@ -168,20 +170,28 @@ const AITab = ({
     });
   };
 
-  // Prepare provider options for dropdown
+  // Prepare provider options for dropdown.
   const providerOptions = Object.entries(providers).map(([id, name]) => ({
     value: id,
     label: name
   }));
+
+  // If shouldDisplay is false, do not render the button and modal.
+  if (!shouldDisplay) {
+    return null;
+  }
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     className: "block-editor-media-placeholder__url-input-container"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Button, {
-    variant: "tertiary",
-    onClick: () => setIsModalOpen(true),
-    className: "block-editor-media-placeholder__button"
+    variant: "secondary" // Secondary styling for the button.
+    ,
+    onClick: () => setIsModalOpen(true) // Open the modal on click.
+    ,
+    className: "block-editor-media-placeholder__button is-secondary" // Additional styling class.
   }, "Generate AI Image")), isModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Modal, {
-    title: "WP AI Image Gen",
-    onRequestClose: () => setIsModalOpen(false)
+    title: "WP AI Image Gen" // Modal title.
+    ,
+    onRequestClose: () => setIsModalOpen(false) // Close modal on request.
   }, error && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
     style: {
       color: 'red'
@@ -197,15 +207,26 @@ const AITab = ({
     onChange: setPrompt,
     rows: 4
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Button, {
-    variant: "primary",
-    onClick: handleGenerate,
-    disabled: isLoading || !selectedProvider || !prompt.trim()
+    variant: "primary" // Primary styling for the button.
+    ,
+    onClick: handleGenerate // Trigger image generation on click.
+    ,
+    disabled: isLoading || !selectedProvider || !prompt.trim() // Disable if loading or inputs missing.
   }, isLoading ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null), "Generating...") : 'Generate Image')));
 };
 
 /**
  * AIImageToolbar component for adding buttons to toolbars.
- * This component now handles both paragraph and image block buttons.
+ * This component handles both image regeneration and image generation based on text selection.
+ *
+ * @param {Object} props - Component properties.
+ * @param {boolean} props.isGenerating - Indicates if an image is currently being generated.
+ * @param {Function} props.onGenerateImage - Function to handle image generation.
+ * @param {boolean} props.isRegenerating - Indicates if an image is currently being regenerated.
+ * @param {Function} props.onRegenerateImage - Function to handle image regeneration.
+ * @param {boolean} props.isImageBlock - Indicates if the current block is an image block.
+ * @param {boolean} props.isTextSelected - Indicates if text is selected within the block.
+ * @returns {JSX.Element|null} The rendered toolbar buttons or null.
  */
 const AIImageToolbar = ({
   isGenerating,
@@ -215,16 +236,17 @@ const AIImageToolbar = ({
   isImageBlock,
   isTextSelected
 }) => {
+  // If the block is an image block, render the regenerate button with appropriate states.
   if (isImageBlock) {
-    // Render regenerate button with refresh icon for image blocks
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
       icon: isRegenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null) : "update",
       label: isRegenerating ? "Regenerating AI Image..." : "Regenerate AI Image",
       onClick: onRegenerateImage,
       disabled: isRegenerating
     }));
-  } else if (isTextSelected) {
-    // Render generate button for paragraph blocks when text is selected
+  }
+  // If text is selected, render the generate button.
+  else if (isTextSelected) {
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.ToolbarButton, {
       icon: isGenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null) : "format-image",
       label: isGenerating ? "Generating AI Image..." : "Generate AI Image",
@@ -233,11 +255,16 @@ const AIImageToolbar = ({
     }));
   }
 
-  // Return null if conditions are not met
+  // Return null if conditions are not met.
   return null;
 };
 
-// Modify the existing registerFormatType function
+/**
+ * Modifies the existing registerFormatType function to include the regenerate button.
+ *
+ * @param {function} BlockEdit - The original BlockEdit component.
+ * @returns {function} The modified BlockEdit component with AI image functionality.
+ */
 (0,_wordpress_rich_text__WEBPACK_IMPORTED_MODULE_4__.registerFormatType)('wp-ai-image-gen/custom-format', {
   title: 'AI Image Gen',
   tagName: 'span',
@@ -247,6 +274,7 @@ const AIImageToolbar = ({
     value,
     onChange
   }) => {
+    // State hooks for handling image generation states and selected provider.
     const [lastUsedProvider, setLastUsedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
     const [isGenerating, setIsGenerating] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
     const selectedBlock = (0,_wordpress_data__WEBPACK_IMPORTED_MODULE_6__.useSelect)(select => select('core/block-editor').getSelectedBlock(), []);
@@ -254,18 +282,22 @@ const AIImageToolbar = ({
       replaceBlocks
     } = (0,_wordpress_data__WEBPACK_IMPORTED_MODULE_6__.useDispatch)('core/block-editor');
 
-    // Fetch the last used provider from localStorage when the component mounts
+    // Fetch the last used provider from localStorage when the component mounts.
     (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useEffect)(() => {
       const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
       if (storedProvider) {
         setLastUsedProvider(storedProvider);
       }
     }, []);
+
+    /**
+     * Handles the image generation process based on the selected text.
+     */
     const handleGenerateImage = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useCallback)(() => {
       if (selectedBlock && selectedBlock.name === 'core/paragraph') {
         const selectedText = value.text.slice(value.start, value.end).trim();
 
-        // Check if selected text exists and is not empty
+        // Check if selected text exists and is not empty.
         if (!selectedText) {
           wp.data.dispatch('core/notices').createErrorNotice('Please select some text to use as the image generation prompt.', {
             type: 'snackbar'
@@ -273,7 +305,7 @@ const AIImageToolbar = ({
           return;
         }
 
-        // Create and insert a placeholder heading block with a message
+        // Create and insert a placeholder heading block with a message.
         const placeholderBlock = wp.blocks.createBlock('core/heading', {
           content: 'Generating AI image...',
           level: 2,
@@ -290,24 +322,25 @@ const AIImageToolbar = ({
             wp.data.dispatch('core/notices').createErrorNotice('Failed to generate image: ' + result.error, {
               type: 'snackbar'
             });
-            // Remove the placeholder block if there's an error
+            // Remove the placeholder block if there's an error.
             replaceBlocks(placeholderBlock.clientId, []);
           } else {
             const imageBlock = wp.blocks.createBlock('core/image', {
               url: result.url,
               alt: result.alt,
               caption: '',
-              id: result.id || `ai-generated-${Date.now()}` // Ensure ID is set
+              id: result.id || `ai-generated-${Date.now()}` // Ensure ID is set.
             });
-            // Replace the placeholder block with the new image block
+            // Replace the placeholder block with the new image block.
             replaceBlocks(placeholderBlock.clientId, [imageBlock]);
           }
         });
       }
     }, [selectedBlock, value.text, value.start, value.end, replaceBlocks, lastUsedProvider]);
 
-    // Check if there's any text selected
-    const isTextSelected = value.start !== value.end;
+    // Extract the selected text and determine if any text is selected.
+    const selectedText = value.text.slice(value.start, value.end).trim();
+    const isTextSelected = selectedText !== "";
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_5__.BlockControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(AIImageToolbar, {
       isGenerating: isGenerating,
       onGenerateImage: handleGenerateImage,
@@ -318,33 +351,59 @@ const AIImageToolbar = ({
 
 // Add the AI tab to the media modal using WordPress filter
 (0,_wordpress_hooks__WEBPACK_IMPORTED_MODULE_1__.addFilter)('editor.MediaUpload', 'wp-ai-image-gen/add-ai-tab', OriginalMediaUpload => {
-  // Return a new component that wraps the original MediaUpload
+  /**
+   * Enhances the original MediaUpload component by adding the AITab.
+   *
+   * @param {Object} props - Props passed to the MediaUpload component.
+   * @returns {JSX.Element} The enhanced MediaUpload component.
+   */
   return props => {
-    // Check if the current block is a gallery block
-    const isGalleryBlock = props.allowedTypes && props.allowedTypes.includes('image') && props.multiple;
+    // Determine if the MediaUpload is for a single image block by checking if multiple is false or undefined.
+    const isSingleImageBlock = props.allowedTypes && props.allowedTypes.includes('image') && !props.multiple;
+
+    // Retrieve the currently selected block using wp.data.
+    const selectedBlock = wp.data.select('core/block-editor').getSelectedBlock();
+
+    // Check if the selected block is an image block.
+    const isImageBlock = selectedBlock && selectedBlock.name === 'core/image';
+
+    // Determine if AITab should be displayed.
+    const shouldDisplay = isSingleImageBlock && isImageBlock;
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(OriginalMediaUpload, {
       ...props,
-      render: originalProps => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, props.render(originalProps), !isGalleryBlock && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(AITab, {
-        onSelect: props.onSelect
+      render: originalProps => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, props.render(originalProps), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(AITab, {
+        onSelect: props.onSelect,
+        shouldDisplay: shouldDisplay
       }))
     });
   };
 });
 
-// Modify the existing addFilter function at the end of the file
+/**
+ * Adds the regenerate button to image blocks in the editor.
+ *
+ * @param {function} BlockEdit - The original BlockEdit component.
+ * @returns {function} The modified BlockEdit component with AI image regeneration functionality.
+ */
 (0,_wordpress_hooks__WEBPACK_IMPORTED_MODULE_1__.addFilter)('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', BlockEdit => {
   return props => {
     const [isRegenerating, setIsRegenerating] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
     const [lastUsedProvider, setLastUsedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)('');
     const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(null);
+
+    // Fetch the last used provider from localStorage when the component mounts.
     (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useEffect)(() => {
       const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
       if (storedProvider) {
         setLastUsedProvider(storedProvider);
       }
     }, []);
+
+    /**
+     * Handles the image regeneration process.
+     */
     const handleRegenerateImage = () => {
-      // Check if alt text exists and is not empty
+      // Check if alt text exists and is not empty.
       if (!props.attributes.alt || props.attributes.alt.trim() === '') {
         wp.data.dispatch('core/notices').createErrorNotice('Please provide alt text to use as the image generation prompt.', {
           type: 'snackbar'
@@ -367,6 +426,8 @@ const AIImageToolbar = ({
         }
       });
     };
+
+    // Only modify the core/image block.
     if (props.name !== 'core/image') {
       return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(BlockEdit, {
         ...props
