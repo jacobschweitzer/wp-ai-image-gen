@@ -2,9 +2,9 @@
 /**
  * Plugin Name:       WP AI Image Gen
  * Description:       A plugin to generate images using AI.
- * Requires at least: 6.6.3
+ * Requires at least: 6.1
  * Requires PHP:      7.0
- * Version:           0.1.3
+ * Version:           0.1.4
  * Author:            Jacob Schweitzer
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
