@@ -80,7 +80,7 @@ function wp_ai_image_gen_upload_image($request, $image_url) {
 
     // Get file info
     $filetype = wp_check_filetype($filename, null);
-    wp_ai_image_gen_debug_log("File type: " . json_encode($filetype));
+    wp_ai_image_gen_debug_log("File type: " . wp_json_encode($filetype));
 
     // Check file size
     $filesize = filesize($upload['file']);
@@ -119,7 +119,7 @@ function wp_ai_image_gen_upload_image($request, $image_url) {
         return $attach_data;
     }
     
-    wp_ai_image_gen_debug_log("Attachment metadata: " . json_encode($attach_data));
+    wp_ai_image_gen_debug_log("Attachment metadata: " . wp_json_encode($attach_data));
     
     wp_update_attachment_metadata($attach_id, $attach_data);
 
