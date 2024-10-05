@@ -26,7 +26,7 @@ function wp_ai_image_gen_register_rest_route() {
         'permission_callback' => function() { return current_user_can('edit_posts'); },
     ]);
 
-    // Add this to your existing REST API routes
+    // Register the providers route.
     register_rest_route('wp-ai-image-gen/v1', '/providers', array(
         'methods' => 'GET',
         'callback' => 'wp_ai_image_gen_get_providers_with_keys',
@@ -41,12 +41,19 @@ add_action('rest_api_init', 'wp_ai_image_gen_register_rest_route');
  * Handles the request to generate an image.
  *
  * @param WP_REST_Request $request The request object.
- * @return WP_REST_Response The response object.
+ * @return WP_REST_Response|WP_Error The response object or WP_Error on failure.
  */
 function wp_ai_image_gen_handle_request($request) {
-    $prompt = $request->get_param('prompt');
-    $provider = $request->get_param('provider');
+    $prompt = $request->get_param('prompt'); // Retrieve the 'prompt' parameter from the request.
+    $provider = $request->get_param('provider'); // Retrieve the 'provider' parameter from the request.
     
+    // Retrieve all provider models.
+    $provider_models = get_option('wp_ai_image_gen_provider_models', array()); // Get all provider models.
+    
+    // Get the model for the specific provider.
+    $model = isset($provider_models[$provider]) ? $provider_models[$provider] : ''; // Retrieve the model for the given provider.
+    wp_ai_image_gen_debug_log("Model for provider {$provider}: {$model}"); // Log the retrieved model.
+
     // Set default values for additional parameters
     $additional_params = array(
         'num_outputs' => 1,
@@ -64,7 +71,7 @@ function wp_ai_image_gen_handle_request($request) {
     }
 
     wp_ai_image_gen_debug_log("Starting image generation request");
-    wp_ai_image_gen_debug_log("Prompt: $prompt, Provider: $provider");
+    wp_ai_image_gen_debug_log("Prompt: $prompt, Provider: $provider, Model: $model");
     wp_ai_image_gen_debug_log("Additional params: " . wp_json_encode($additional_params));
 
     $max_retries = 3;
@@ -74,7 +81,7 @@ function wp_ai_image_gen_handle_request($request) {
     while ($retry_count < $max_retries) {
         try {
             wp_ai_image_gen_debug_log("Attempt " . ($retry_count + 1) . " - Making API request to $provider");
-            $response = wp_ai_image_gen_make_api_request($provider, $prompt, $additional_params);
+            $response = wp_ai_image_gen_make_api_request($provider, $prompt, $model, $additional_params);
             
             if (is_wp_error($response)) {
                 throw new Exception($response->get_error_message());
@@ -136,10 +143,11 @@ function wp_ai_image_gen_get_api_key($provider) {
  *
  * @param string $provider The selected provider.
  * @param string $prompt   The prompt for image generation.
+ * @param string $model    The selected model for image generation.
  * @param array  $additional_params Additional parameters for the API request.
  * @return array|WP_Error The API response or WP_Error on failure.
  */
-function wp_ai_image_gen_make_api_request($provider, $prompt, $additional_params) {
+function wp_ai_image_gen_make_api_request($provider, $prompt, $model, $additional_params) {
     if ($provider === 'replicate') {
         // Retrieve the API key from the options.
         $api_key = wp_ai_image_gen_get_api_key('replicate');
@@ -155,20 +163,23 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $additional_params
         );
 
         // Prepare the request body
-        $body = array(
+        $body = [
             'input' => array_merge(
-                array('prompt' => $prompt),
+                [
+                    'prompt' => $prompt,
+                ],
                 $additional_params
             )
-        );
+        ];
 
         wp_ai_image_gen_debug_log("Sending request to Replicate API: " . wp_json_encode($body));
-
+        $api_url = "https://api.replicate.com/v1/models/{$model}/predictions";
+        wp_ai_image_gen_debug_log("API URL: " . $api_url);
         $response = wp_remote_post(
-            "https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions",
+            $api_url,
             array(
                 'headers' => $headers,
-                'body' => wp_json_encode($body),
+                'body'    => wp_json_encode($body),
                 'timeout' => 30
             )
         );
@@ -226,7 +237,7 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $additional_params
 
         $headers = array(
             'Authorization' => 'Bearer ' . $api_key,
-            'Content-Type' => 'application/json'
+            'Content-Type'  => 'application/json'
         );
 
         /**
@@ -235,14 +246,14 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $additional_params
          * Style defaults to vivid.
          */
         $body = array(
-            'prompt' => $prompt,
-            'n' => 1, // only 1 is supported for dall-e-3
-            'response_format' => 'url',
-            'model' => "dall-e-3",
+            'prompt'            => $prompt,
+            'n'                 => 1, // only 1 is supported for dall-e-3
+            'response_format'   => 'url',
+            'model'             => $model, // Include the selected model.
         );
 
         /**
-         * @todo add style support to the body array.
+         * @todo Add style support to the body array.
          * style
          * string or null
          * Optional
@@ -260,7 +271,7 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $additional_params
             "https://api.openai.com/v1/images/generations",
             array(
                 'headers' => $headers,
-                'body' => wp_json_encode($body),
+                'body'    => wp_json_encode($body),
                 'timeout' => 30
             )
         );
@@ -278,26 +289,27 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $additional_params
         return array($body['data'][0]['url']);
     }
 
-    // Implement other providers here
+    // Implement other providers here.
 
     throw new Exception('Unsupported provider: ' . $provider);
 }
 
 /**
- * Handles the API response and retrieves the image URL.
+ * Processes the API response and retrieves the image URL.
  *
  * @param string $provider The provider name.
  * @param array  $response The API response.
- * @return string|WP_Error The image URL or WP_Error on failure.
+ * @return string The image URL.
+ * @throws Exception If processing fails.
  */
 function wp_ai_image_gen_process_api_response($provider, $response) {
     wp_ai_image_gen_debug_log("Processing API response for provider: $provider");
     wp_ai_image_gen_debug_log("Response: " . wp_json_encode($response));
 
     if ($provider === 'replicate') {
-        // Validate that the response is an array of strings (URIs)
+        // Validate that the response is an array of strings (URIs).
         if (is_array($response) && !empty($response) && is_string($response[0])) {
-            $image_url = $response[0]; // Get the first image URL
+            $image_url = $response[0]; // Get the first image URL.
             wp_ai_image_gen_debug_log("Extracted image URL: $image_url");
             return $image_url;
         } else {
@@ -306,7 +318,7 @@ function wp_ai_image_gen_process_api_response($provider, $response) {
             throw new Exception('Invalid response format from Replicate');
         }
     } elseif ($provider === 'openai') {
-        // Validate that the response is an array with one string (URI)
+        // Validate that the response is an array with one string (URI).
         if (is_array($response) && count($response) === 1 && is_string($response[0])) {
             $image_url = $response[0];
             wp_ai_image_gen_debug_log("Extracted image URL: $image_url");
@@ -318,34 +330,34 @@ function wp_ai_image_gen_process_api_response($provider, $response) {
         }
     }
 
-    // Implement processing for other providers here
+    // Implement processing for other providers here.
 
     error_log("WP AI Image Gen Error: Unsupported provider - $provider");
     throw new Exception('Failed to process API response for provider: ' . $provider);
 }
 
 /**
- * Returns the list of providers that have API keys set.
+ * Retrieves the list of providers that have API keys set.
  *
- * @return WP_REST_Response
+ * @return WP_REST_Response The response containing providers with keys.
  */
 function wp_ai_image_gen_get_providers_with_keys() {
     try {
-        // Ensure the function to get providers exists
+        // Ensure the function to get providers exists.
         if (!function_exists('wp_ai_image_gen_get_providers')) {
             throw new Exception('Function wp_ai_image_gen_get_providers does not exist.');
         }
 
         $all_providers = wp_ai_image_gen_get_providers();
         
-        // Check if we got a valid array of providers
+        // Check if we got a valid array of providers.
         if (!is_array($all_providers)) {
             throw new Exception('Invalid providers data returned.');
         }
 
         $provider_api_keys = get_option('wp_ai_image_gen_provider_api_keys', array());
         
-        // Check if we got a valid array of API keys
+        // Check if we got a valid array of API keys.
         if (!is_array($provider_api_keys)) {
             throw new Exception('Invalid API keys data returned.');
         }
@@ -354,15 +366,15 @@ function wp_ai_image_gen_get_providers_with_keys() {
             return !empty($provider_api_keys[$provider_id]);
         }, ARRAY_FILTER_USE_KEY);
 
-        // Log successful execution
+        // Log successful execution.
         wp_ai_image_gen_debug_log('Successfully fetched providers with keys.');
 
         return new WP_REST_Response($providers_with_keys, 200);
     } catch (Exception $e) {
-        // Log the error
+        // Log the error.
         error_log('WP AI Image Gen Error: ' . $e->getMessage());
 
-        // Return an error response
+        // Return an error response.
         return new WP_REST_Response(
             array('message' => 'An error occurred while fetching providers: ' . $e->getMessage()),
             500
