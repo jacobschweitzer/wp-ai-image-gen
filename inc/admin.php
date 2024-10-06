@@ -48,7 +48,7 @@ function wp_ai_image_gen_render_settings_page() {
  * @return void
  */
 function wp_ai_image_gen_migrate_api_keys() {
-	$provider_api_keys = get_option('wp_ai_image_gen_provider_api_keys', array());
+	$provider_api_keys = get_option('wp_ai_image_gen_provider_api_keys', []);
 	$migration_needed = false;
 
 	// Check if OpenAI key exists in old format.
@@ -78,18 +78,18 @@ function wp_ai_image_gen_register_settings() {
 	register_setting(
 		'wp_ai_image_gen_settings',              // Option group.
 		'wp_ai_image_gen_provider_api_keys',     // Option name.
-		array(
+		[
 			'sanitize_callback' => 'wp_ai_image_gen_sanitize_provider_api_keys',
-		)
+		]
 	);
 
 	// Register options for provider models.
 	register_setting(
 		'wp_ai_image_gen_settings',              // Option group.
 		'wp_ai_image_gen_provider_models',       // Option name.
-		array(
+		[
 			'sanitize_callback' => 'wp_ai_image_gen_sanitize_provider_models',
-		)
+		]
 	);
 
 	// Add a settings section for API keys and models.
@@ -148,7 +148,7 @@ function wp_ai_image_gen_providers_section_callback() {
  * @return void
  */
 function wp_ai_image_gen_api_key_callback($args) {
-    $provider_api_keys = get_option('wp_ai_image_gen_provider_api_keys', array());
+    $provider_api_keys = get_option('wp_ai_image_gen_provider_api_keys', []);
     $provider_id = $args['provider_id'];
     $api_key = isset($provider_api_keys[$provider_id]) ? $provider_api_keys[$provider_id] : '';
 
@@ -216,7 +216,7 @@ function wp_ai_image_gen_sanitize_provider_api_keys($input) {
  * @return array The sanitized array of provider models.
  */
 function wp_ai_image_gen_sanitize_provider_models($input) {
-    $sanitized = array();
+    $sanitized = [];
     $providers = wp_ai_image_gen_get_providers();
     
     // Iterate through all known providers.
@@ -239,20 +239,20 @@ function wp_ai_image_gen_get_models_for_provider($provider_id) {
 
     switch ($provider_id) {
         case 'openai':
-            $models = array(
+            $models = [
                 'dall-e-2' => 'DALL-E 2',
                 'dall-e-3' => 'DALL-E 3',
-            );
+			];
             break;
         case 'replicate':
-            $models = array(
+            $models = [
                 'black-forest-labs/flux-schnell' => 'Flux Schnell by Black Forest Labs',
 				'black-forest-labs/flux-1.1-pro' => 'Flux 1.1 Pro by Black Forest Labs',
-            );
+			];
             break;
         // Add cases for more providers as needed.
         default:
-            $models = array();
+            $models = [];
             break;
     }
 
