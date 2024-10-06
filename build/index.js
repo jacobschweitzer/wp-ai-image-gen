@@ -367,8 +367,17 @@ const AIImageToolbar = ({
     // Check if the selected block is an image block.
     const isImageBlock = selectedBlock && selectedBlock.name === 'core/image';
 
-    // Determine if AITab should be displayed.
-    const shouldDisplay = isSingleImageBlock && isImageBlock;
+    /**
+     * Checks if the current block already has image data.
+     *
+     * @returns {boolean} True if the block already contains image data, otherwise false.
+     */
+    const hasImageData = () => {
+      return selectedBlock && selectedBlock.attributes && selectedBlock.attributes.url;
+    };
+
+    // Determine if AITab should be displayed by ensuring it's a new image block without existing image data.
+    const shouldDisplay = isSingleImageBlock && isImageBlock && !hasImageData();
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(OriginalMediaUpload, {
       ...props,
       render: originalProps => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, props.render(originalProps), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(AITab, {
