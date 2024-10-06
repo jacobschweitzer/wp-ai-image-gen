@@ -112,7 +112,10 @@ function wp_ai_image_gen_register_settings() {
 			'wp_ai_image_gen_api_key_callback',                             // Callback.
 			'wp-ai-image-gen-settings',                                     // Page.
 			'wp_ai_image_gen_settings_section',                             // Section.
-			array('provider_id' => $provider_id, 'provider_name' => $provider_name) // Args.
+			[
+				'provider_id'   => $provider_id,
+				'provider_name' => $provider_name,
+			]
 		);
 
 		// Model Selection Field.
@@ -122,11 +125,11 @@ function wp_ai_image_gen_register_settings() {
 			'wp_ai_image_gen_model_callback',                                 // Callback.
 			'wp-ai-image-gen-settings',                                       // Page.
 			'wp_ai_image_gen_settings_section',                               // Section.
-			array(
+			[
 				'provider_id'   => $provider_id,
 				'provider_name' => $provider_name,
 				'models'        => wp_ai_image_gen_get_models_for_provider($provider_id), // Models array.
-			)
+			]
 		);
 	}
 }
@@ -165,10 +168,10 @@ function wp_ai_image_gen_api_key_callback($args) {
  * @return void
  */
 function wp_ai_image_gen_model_callback($args) {
-    $provider_models = get_option('wp_ai_image_gen_provider_models', array());
+    $provider_models = get_option('wp_ai_image_gen_provider_models', []);
     $provider_id = $args['provider_id'];
     $selected_model = isset($provider_models[$provider_id]) ? $provider_models[$provider_id] : '';
-    $models = isset($args['models']) ? $args['models'] : array();
+    $models = isset($args['models']) ? $args['models'] : [];
 
     if (empty($models)) {
         echo '<p>No models available for this provider.</p>';
@@ -197,7 +200,7 @@ function wp_ai_image_gen_model_callback($args) {
  * @return array The sanitized array of provider API keys.
  */
 function wp_ai_image_gen_sanitize_provider_api_keys($input) {
-    $sanitized = array();
+    $sanitized = [];
     $providers = wp_ai_image_gen_get_providers();
     
     // Iterate through all known providers.
@@ -235,7 +238,7 @@ function wp_ai_image_gen_sanitize_provider_models($input) {
  * @return array An associative array of model IDs and names.
  */
 function wp_ai_image_gen_get_models_for_provider($provider_id) {
-    $models = array();
+    $models = [];
 
     switch ($provider_id) {
         case 'openai':
@@ -298,17 +301,16 @@ add_action('admin_footer', 'wp_ai_image_gen_admin_footer_js');
  * @return array An associative array of provider IDs and names.
  */
 function wp_ai_image_gen_get_providers() {
-	return array(
-		'openai' => 'OpenAI',
+	return [
+		'openai'    => 'OpenAI',
 		'replicate' => 'Replicate',
-		// Add more providers here as needed
-	);
+	];
 }
 
 /**
  * Load the script.
  */
 function wp_ai_image_gen_enqueue_script() {
-	wp_enqueue_script('wp-ai-image-gen', plugin_dir_url(__FILE__) . '../build/index.js', array('wp-blocks', 'wp-i18n', 'wp-editor'), '1.0.0', true);
+	wp_enqueue_script('wp-ai-image-gen', plugin_dir_url(__FILE__) . '../build/index.js', ['wp-blocks', 'wp-i18n', 'wp-editor'], '1.0.0', true);
 }
 add_action('admin_enqueue_scripts', 'wp_ai_image_gen_enqueue_script');

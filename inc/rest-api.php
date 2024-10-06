@@ -310,6 +310,11 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $model, $additiona
             'model'             => $model, // Include the selected model.
         ];
 
+        // If the model is dall-e-3, use hd quality.
+        if ('dall-e-3' === $model) {
+            $body['quality'] = 'hd';
+        }
+
         /**
          * @todo Add style support to the body array.
          * style
