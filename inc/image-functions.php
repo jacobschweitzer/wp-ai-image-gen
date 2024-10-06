@@ -20,7 +20,7 @@ function wp_ai_image_gen_download_image($url) {
     wp_ai_image_gen_debug_log("Downloading image from URL: $url");
 
     // Make a remote GET request to fetch the image data with a 60-second timeout.
-    $response = wp_remote_get($url, array('timeout' => 60));
+    $response = wp_remote_get($url, ['timeout' => 60]);
 
     // Check if the response contains a WordPress error.
     if (is_wp_error($response)) {
@@ -173,8 +173,8 @@ function wp_ai_image_gen_upload_image($request, $image_url) {
     wp_ai_image_gen_debug_log("Image process completed. Attachment URL: $attachment_url");
 
     // Return the attachment URL and ID as a successful REST response.
-    return new WP_REST_Response(array(
+    return new WP_REST_Response([
         'url' => $attachment_url,
         'id' => $attach_id
-    ), 200);
+    ], 200);
 }
