@@ -44,25 +44,28 @@ add_action('rest_api_init', 'wp_ai_image_gen_register_rest_route');
  * @return WP_REST_Response|WP_Error The response object or WP_Error on failure.
  */
 function wp_ai_image_gen_handle_request($request) {
-    $prompt = $request->get_param('prompt'); // Retrieve the 'prompt' parameter from the request.
-    $provider = $request->get_param('provider'); // Retrieve the 'provider' parameter from the request.
+    // Retrieve the 'prompt' parameter from the request.
+    $prompt = $request->get_param('prompt');
+    // Retrieve the 'provider' parameter from the request.
+    $provider = $request->get_param('provider');
     
-    // Retrieve all provider models.
-    $provider_models = get_option('wp_ai_image_gen_provider_models', array()); // Get all provider models.
+    // Get all provider models from the options.
+    $provider_models = get_option('wp_ai_image_gen_provider_models', array());
     
-    // Get the model for the specific provider.
-    $model = isset($provider_models[$provider]) ? $provider_models[$provider] : ''; // Retrieve the model for the given provider.
-    wp_ai_image_gen_debug_log("Model for provider {$provider}: {$model}"); // Log the retrieved model.
+    // Retrieve the model for the given provider.
+    $model = isset($provider_models[$provider]) ? $provider_models[$provider] : '';
+    // Log the retrieved model for debugging purposes.
+    wp_ai_image_gen_debug_log("Model for provider {$provider}: {$model}");
 
-    // Set default values for additional parameters
+    // Set default values for additional parameters.
     $additional_params = array(
-        'num_outputs' => 1,
-        'aspect_ratio' => '1:1',
-        'output_format' => 'webp',
+        'num_outputs'    => 1,
+        'aspect_ratio'   => '1:1',
+        'output_format'  => 'webp',
         'output_quality' => 80
     );
     
-    // Override defaults with any provided parameters
+    // Override defaults with any provided parameters.
     foreach ($additional_params as $key => $default) {
         $value = $request->get_param($key);
         if ($value !== null) {
@@ -70,44 +73,72 @@ function wp_ai_image_gen_handle_request($request) {
         }
     }
 
+    // Log the start of the image generation request.
     wp_ai_image_gen_debug_log("Starting image generation request");
+    // Log the prompt, provider, and model being used.
     wp_ai_image_gen_debug_log("Prompt: $prompt, Provider: $provider, Model: $model");
+    // Log the additional parameters in JSON format.
     wp_ai_image_gen_debug_log("Additional params: " . wp_json_encode($additional_params));
 
+    // Set the maximum number of retry attempts.
     $max_retries = 3;
+    // Initialize the retry count.
     $retry_count = 0;
-    $delay = 5; // Initial delay in seconds
+    // Set the initial delay in seconds before retrying.
+    $delay = 30; // Increased from 10 to 30 seconds
 
+    // Loop to handle retries.
     while ($retry_count < $max_retries) {
         try {
+            // Log the current attempt number and provider.
             wp_ai_image_gen_debug_log("Attempt " . ($retry_count + 1) . " - Making API request to $provider");
+            // Make the API request to the selected provider.
             $response = wp_ai_image_gen_make_api_request($provider, $prompt, $model, $additional_params);
             
+            // Check if the response is a WordPress error.
             if (is_wp_error($response)) {
+                // Throw an exception with the error message.
                 throw new Exception($response->get_error_message());
             }
 
+            // Log that the API response is being handled.
             wp_ai_image_gen_debug_log("Handling API response");
+            // Process the API response to retrieve the image URL.
             $image_url = wp_ai_image_gen_process_api_response($provider, $response);
             
+            // If an image URL is successfully retrieved.
             if ($image_url) {
+                // Log the successful image generation.
                 wp_ai_image_gen_debug_log("Image generated successfully: $image_url");
+                // Upload the generated image and return the response.
                 return wp_ai_image_gen_upload_image($request, $image_url);
             } else {
+                // Throw an exception if the image URL could not be extracted.
                 throw new Exception("Failed to extract image URL from response");
             }
         } catch (Exception $e) {
+            // Log the error message with the current attempt number.
             error_log("WP AI Image Gen: Error on attempt " . ($retry_count + 1) . ": " . $e->getMessage());
+            // Increment the retry count.
             $retry_count++;
 
+            // Check if the maximum number of retries has been reached.
             if ($retry_count >= $max_retries) {
+                // Log that all retry attempts have been exhausted.
                 error_log("WP AI Image Gen: All retry attempts exhausted");
-                return new WP_Error('api_error', 'Failed to generate image after ' . $max_retries . ' attempts: ' . $e->getMessage(), array('status' => 500));
+                // Return a WP_Error indicating the failure to generate the image.
+                return new WP_Error(
+                    'api_error', 
+                    'Failed to generate image after ' . $max_retries . ' attempts: ' . $e->getMessage(), 
+                    array('status' => 500)
+                );
             }
 
-            // Exponential backoff
-            $delay *= 2;
+            // Implement exponential backoff by doubling the delay.
+            $delay *= 2; // Increased backoff multiplier if needed.
+            // Log the retry attempt and the delay before the next attempt.
             wp_ai_image_gen_debug_log("Retrying in $delay seconds...");
+            // Pause execution for the specified delay duration.
             sleep($delay);
         }
     }
@@ -298,41 +329,60 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $model, $additiona
  * Processes the API response and retrieves the image URL.
  *
  * @param string $provider The provider name.
- * @param array  $response The API response.
+ * @param mixed  $response The API response.
  * @return string The image URL.
  * @throws Exception If processing fails.
  */
 function wp_ai_image_gen_process_api_response($provider, $response) {
+    // Log the provider being processed.
     wp_ai_image_gen_debug_log("Processing API response for provider: $provider");
+    // Log the raw API response.
     wp_ai_image_gen_debug_log("Response: " . wp_json_encode($response));
 
     if ($provider === 'replicate') {
         // Validate that the response is an array of strings (URIs).
         if (is_array($response) && !empty($response) && is_string($response[0])) {
-            $image_url = $response[0]; // Get the first image URL.
+            // Extract the first image URL from the response array.
+            $image_url = $response[0];
+            // Log the extracted image URL.
             wp_ai_image_gen_debug_log("Extracted image URL: $image_url");
+            // Return the image URL.
+            return $image_url;
+        } elseif ( is_string( $response ) && ! empty( $response ) ) {
+            // Assign the response string as the image URL.
+            $image_url = $response;
+            // Log the extracted image URL.
+            wp_ai_image_gen_debug_log("Extracted image URL: $image_url");
+            // Return the image URL.
             return $image_url;
         } else {
+            // Log an error if the response format is invalid for Replicate.
             error_log("WP AI Image Gen Error: Invalid response format from Replicate");
             error_log("Expected an array of strings, got: " . gettype($response));
+            // Throw an exception indicating the invalid response format.
             throw new Exception('Invalid response format from Replicate');
         }
     } elseif ($provider === 'openai') {
         // Validate that the response is an array with one string (URI).
         if (is_array($response) && count($response) === 1 && is_string($response[0])) {
+            // Extract the image URL from the response array.
             $image_url = $response[0];
+            // Log the extracted image URL.
             wp_ai_image_gen_debug_log("Extracted image URL: $image_url");
+            // Return the image URL.
             return $image_url;
         } else {
+            // Log an error if the response format is invalid for OpenAI.
             error_log("WP AI Image Gen Error: Invalid response format from OpenAI");
             error_log("Expected an array with one string, got: " . wp_json_encode($response));
+            // Throw an exception indicating the invalid response format.
             throw new Exception('Invalid response format from OpenAI');
         }
     }
 
-    // Implement processing for other providers here.
-
+    // Log an error if the provider is unsupported.
     error_log("WP AI Image Gen Error: Unsupported provider - $provider");
+    // Throw an exception indicating the unsupported provider.
     throw new Exception('Failed to process API response for provider: ' . $provider);
 }
 
