@@ -367,8 +367,17 @@ addFilter('editor.MediaUpload', 'wp-ai-image-gen/add-ai-tab', (OriginalMediaUplo
         // Check if the selected block is an image block.
         const isImageBlock = selectedBlock && selectedBlock.name === 'core/image';
 
-        // Determine if AITab should be displayed.
-        const shouldDisplay = isSingleImageBlock && isImageBlock;
+        /**
+         * Checks if the current block already has image data.
+         *
+         * @returns {boolean} True if the block already contains image data, otherwise false.
+         */
+        const hasImageData = () => {
+            return selectedBlock && selectedBlock.attributes && selectedBlock.attributes.url;
+        };
+
+        // Determine if AITab should be displayed by ensuring it's a new image block without existing image data.
+        const shouldDisplay = isSingleImageBlock && isImageBlock && !hasImageData();
 
         return (
             <OriginalMediaUpload
@@ -377,7 +386,7 @@ addFilter('editor.MediaUpload', 'wp-ai-image-gen/add-ai-tab', (OriginalMediaUplo
                     <>
                         {/* Render the original MediaUpload component */}
                         {props.render(originalProps)}
-                        {/* Add the AITab component only if it's a single image block */}
+                        {/* Add the AITab component only if it's a single image block without existing image data */}
                         <AITab 
                             onSelect={props.onSelect} 
                             shouldDisplay={shouldDisplay} 
