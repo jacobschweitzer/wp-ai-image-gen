@@ -199,11 +199,15 @@ function wp_ai_image_gen_get_api_key($provider) {
 /**
  * Makes the API request to the selected provider for image generation.
  *
+ * This function handles API requests to different providers, with specific implementations for Replicate and OpenAI.
+ * For Replicate, it now uses the sync mode with a 60-second timeout.
+ *
  * @param string $provider The selected provider.
- * @param string $prompt   The prompt for image generation.
- * @param string $model    The selected model for image generation.
- * @param array  $additional_params Additional parameters for the API request.
+ * @param string $prompt The prompt for image generation.
+ * @param string $model The selected model for image generation.
+ * @param array $additional_params Additional parameters for the API request.
  * @return array|WP_Error The API response or WP_Error on failure.
+ * @throws Exception If there's an error during the API request process.
  */
 function wp_ai_image_gen_make_api_request($provider, $prompt, $model, $additional_params) {
     if ($provider === 'replicate') {
@@ -216,8 +220,9 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $model, $additiona
         }
 
         $headers = [
-            'Authorization' => 'Bearer ' . $api_key,  // Changed to 'Bearer'
-            'Content-Type' => 'application/json'
+            'Authorization' => 'Bearer ' . $api_key,
+            'Content-Type' => 'application/json',
+            'Prefer' => 'wait=60' // Use sync mode with the default 60-second timeout.
         ];
 
         // Prepare the request body
@@ -238,7 +243,7 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $model, $additiona
             [
                 'headers' => $headers,
                 'body'    => wp_json_encode($body),
-                'timeout' => 30
+                'timeout' => 65 // Slightly longer than the Prefer wait time
             ]
         );
 
@@ -248,42 +253,14 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $model, $additiona
 
         $body = json_decode(wp_remote_retrieve_body($response), true);
         
-        if (!isset($body['id'])) {
-            throw new Exception('Failed to start prediction: ' . wp_json_encode($body));
+        if ($body['status'] === 'succeeded') {
+            return $body['output'];
+        } elseif ($body['status'] === 'failed') {
+            throw new Exception('Prediction failed: ' . wp_json_encode($body));
+        } else {
+            // If the prediction is still processing, we might need to poll.
+            return wp_ai_image_gen_poll_replicate_prediction($body['id'], $headers);
         }
-
-        $prediction_id = $body['id'];
-        $max_attempts = 60;
-        $attempt = 0;
-
-        while ($attempt < $max_attempts) {
-            $status_response = wp_remote_get(
-                "https://api.replicate.com/v1/predictions/$prediction_id",
-                [
-                    'headers' => $headers,
-                    'timeout' => 10
-                ]
-            );
-
-            if (is_wp_error($status_response)) {
-                throw new Exception($status_response->get_error_message());
-            }
-
-            $status_body = json_decode(wp_remote_retrieve_body($status_response), true);
-
-            wp_ai_image_gen_debug_log("Prediction status: " . $status_body['status']);
-
-            if ($status_body['status'] === 'succeeded') {
-                return $status_body['output'];
-            } elseif ($status_body['status'] === 'failed') {
-                throw new Exception('Prediction failed: ' . wp_json_encode($status_body));
-            }
-
-            $attempt++;
-            sleep(5);
-        }
-
-        throw new Exception('Replicate prediction timed out after ' . $max_attempts . ' attempts');
     }
 
     if ($provider === 'openai') {
@@ -355,6 +332,51 @@ function wp_ai_image_gen_make_api_request($provider, $prompt, $model, $additiona
     // Implement other providers here.
 
     throw new Exception('Unsupported provider: ' . $provider);
+}
+
+/**
+ * Polls the Replicate API for the prediction result.
+ *
+ * This function is called when the initial sync request doesn't complete within the timeout period.
+ * It repeatedly checks the prediction status until it succeeds or fails.
+ *
+ * @param string $prediction_id The ID of the prediction to poll.
+ * @param array $headers The headers to use for the API request.
+ * @return array The prediction output.
+ * @throws Exception If the prediction is still processing after the timeout period.
+ */
+function wp_ai_image_gen_poll_replicate_prediction($prediction_id, $headers) {
+    $max_attempts = 60;
+    $attempt = 0;
+
+    while ($attempt < $max_attempts) {
+        $status_response = wp_remote_get(
+            "https://api.replicate.com/v1/predictions/$prediction_id",
+            [
+                'headers' => $headers,
+                'timeout' => 10
+            ]
+        );
+
+        if (is_wp_error($status_response)) {
+            throw new Exception($status_response->get_error_message());
+        }
+
+        $status_body = json_decode(wp_remote_retrieve_body($status_response), true);
+
+        wp_ai_image_gen_debug_log("Prediction status: " . $status_body['status']);
+
+        if ($status_body['status'] === 'succeeded') {
+            return $status_body['output'];
+        } elseif ($status_body['status'] === 'failed') {
+            throw new Exception('Prediction failed: ' . wp_json_encode($status_body));
+        }
+
+        $attempt++;
+        sleep(5);
+    }
+
+    throw new Exception('Replicate prediction timed out after ' . $max_attempts . ' attempts');
 }
 
 /**
@@ -463,3 +485,4 @@ function wp_ai_image_gen_get_providers_with_keys() {
         );
     }
 }
+
