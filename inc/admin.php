@@ -249,8 +249,8 @@ function wp_ai_image_gen_get_models_for_provider($provider_id) {
             break;
         case 'replicate':
             $models = [
-                'black-forest-labs/flux-schnell' => 'Flux Schnell by Black Forest Labs',
-				'black-forest-labs/flux-1.1-pro' => 'Flux 1.1 Pro by Black Forest Labs',
+                'black-forest-labs/flux-schnell' => 'Flux Schnell by Black Forest Labs (low quality)',
+				'black-forest-labs/flux-1.1-pro' => 'Flux 1.1 Pro by Black Forest Labs (high quality)',
 			];
             break;
         // Add cases for more providers as needed.
