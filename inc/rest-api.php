@@ -348,28 +348,32 @@ function wp_ai_image_gen_process_api_response($provider, $response) {
 
     if ($provider === 'replicate') {
         // Add more robust error checking and logging
-        if (!is_array($response) || empty( $response )) {
+        if (!is_array($response) || empty($response)) {
             wp_ai_image_gen_debug_log("Invalid Replicate response format: " . wp_json_encode($response));
             throw new Exception('Invalid response format from Replicate');
         }
 
-        // Check if the image_data is already a complete data URI
-        if (strpos($response['output'][0], 'data:') === 0) {
-            // If it's a complete data URI, we can use it directly
-            wp_ai_image_gen_debug_log("Received complete data URI from Replicate");
-            return wp_ai_image_gen_data_uri_to_image($response['output'][0]);
-        } else {
-            // If it's not a data URI, it might be a URL
-            wp_ai_image_gen_debug_log("Received URL from Replicate: $image_data");
-            return $response['output'];
+        // Check if the output exists and is a data URI
+        if ( ! empty( $response['output'] ) ) {
+            $image_data = is_array( $response['output'] ) ? $response['output'][0] : $response['output'];
+            // Check if the image_data is already a complete data URI
+            if ( strpos( $image_data, 'data:' ) === 0) {
+                // If it's a complete data URI, we can use it directly
+                wp_ai_image_gen_debug_log( 'Received complete data URI from Replicate' );
+                return wp_ai_image_gen_data_uri_to_image($image_data);
+            } else {
+                // If it's not a data URI, it might be a URL
+                wp_ai_image_gen_debug_log( 'Received URL from Replicate: ' . $image_data );
+                return $image_data;
+            }
         }
-    } elseif ($provider === 'openai') {
+    } elseif ( $provider === 'openai' ) {
         // Validate that the response is an array with one string (URI).
-        if (is_array($response) && count($response) === 1 && is_string($response[0])) {
+        if ( is_array( $response ) && count( $response ) === 1 && is_string( $response[0] ) ) {
             // Extract the image URL from the response array.
             $image_url = $response[0];
             // Log the extracted image URL.
-            wp_ai_image_gen_debug_log("Extracted image URL: $image_url");
+            wp_ai_image_gen_debug_log( 'Extracted image URL: ' . $image_url );
             // Return the image URL.
             return $image_url;
         } else {
