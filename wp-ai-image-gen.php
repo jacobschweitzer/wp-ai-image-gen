@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Set an debug log flag.
-define( 'WP_AI_IMAGE_GEN_DEBUG_LOG', false );
+define( 'WP_AI_IMAGE_GEN_DEBUG_LOG', true );
 
 // Load the admin page settings.
 if ( is_admin() ) {

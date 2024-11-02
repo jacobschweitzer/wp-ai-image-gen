@@ -5,17 +5,48 @@
  * @package WP_AI_Image_Gen
  */
 
-// Include the base provider class.
-require_once plugin_dir_path(__FILE__) . '../class-image-provider.php';
-
 /**
  * This class handles image generation using the Replicate API service.
  */
-class WP_AI_Image_Provider_Replicate extends WP_AI_Image_Provider {
+class WP_AI_Image_Provider_Replicate implements WP_AI_Image_Provider_Interface {
     /**
      * The base URL for the Replicate API.
      */
     private const API_BASE_URL = 'https://api.replicate.com/v1/models/';
+
+    /**
+     * The selected model for image generation.
+     *
+     * @var string
+     */
+    private $model;
+
+    /**
+     * The API key for authentication.
+     *
+     * @var string
+     */
+    private $api_key;
+
+    /**
+     * Constructor initializes the provider with API key and model.
+     *
+     * @param string $api_key The API key for authentication.
+     * @param string $model The selected model for image generation.
+     */
+    public function __construct($api_key, $model) {
+        $this->api_key = $api_key;
+        $this->model = $model;
+    }
+
+    /**
+     * Gets the unique identifier for this provider.
+     *
+     * @return string The unique identifier for this provider.
+     */
+    public function get_id() {
+        return 'replicate';
+    }
 
     /**
      * Generates an image using the Replicate API.
@@ -123,10 +154,9 @@ class WP_AI_Image_Provider_Replicate extends WP_AI_Image_Provider {
      * @return true|WP_Error True if valid, WP_Error if invalid.
      */
     protected function validate_parameters($prompt, $additional_params = []) {
-        // First call the parent class validation.
-        $parent_validation = parent::validate_parameters($prompt, $additional_params);
-        if (is_wp_error($parent_validation)) {
-            return $parent_validation;
+        // Check that we have a prompt.
+        if (empty($prompt)) {
+            return new WP_Error('invalid_prompt', 'Prompt cannot be empty');
         }
 
         // Validate Replicate-specific parameters.
@@ -155,5 +185,40 @@ class WP_AI_Image_Provider_Replicate extends WP_AI_Image_Provider {
         }
 
         return true;
+    }
+
+    /**
+     * Gets the currently selected model for this provider.
+     * This method returns the model identifier that is currently set for image generation.
+     *
+     * @return string The current model identifier.
+     */
+    public function get_current_model() {
+        return $this->model;
+    }
+
+    /**
+     * Sets a new model for the provider.
+     * This method validates and sets a new model for image generation, ensuring it exists in the available models list.
+     *
+     * @param string $model The new model identifier to set.
+     * @return bool True if the model was successfully set, false otherwise.
+     */
+    public function set_model($model) {
+        $available_models = $this->get_available_models();
+        if (array_key_exists($model, $available_models)) {
+            $this->model = $model;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Gets the display name for this provider.
+     *
+     * @return string The display name for this provider.
+     */
+    public function get_name() {
+        return 'Replicate';
     }
 }
