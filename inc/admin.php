@@ -303,7 +303,6 @@ add_action('admin_footer', 'wp_ai_image_gen_admin_footer_js');
  */
 function wp_ai_image_gen_get_providers() {
 	return [
-		'openai'    => 'OpenAI',
 		'replicate' => 'Replicate',
 	];
 }

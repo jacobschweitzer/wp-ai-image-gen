@@ -210,126 +210,28 @@ function wp_ai_image_gen_get_api_key($provider) {
  * @throws Exception If there's an error during the API request process.
  */
 function wp_ai_image_gen_make_api_request($provider, $prompt, $model, $additional_params) {
+    // Get the API key for the provider
+    $api_key = wp_ai_image_gen_get_api_key($provider);
+    
     if ($provider === 'replicate') {
-        // Retrieve the API key from the options.
-        $api_key = wp_ai_image_gen_get_api_key('replicate');
+        // Include the Replicate provider class
+        require_once plugin_dir_path(__FILE__) . 'providers/class-image-provider-replicate.php';
         
-        // Check if the API key is empty.
-        if (empty($api_key)) {
-            throw new Exception('Replicate API key is not set.');
-        }
-
-        $headers = [
-            'Authorization' => 'Bearer ' . $api_key,
-            'Content-Type' => 'application/json',
-            'Prefer' => 'wait=60' // Use sync mode with a 60-second timeout.
-        ];
-
-        // Prepare the request body
-        $body = [
-            'input' => array_merge(
-                [
-                    'prompt' => $prompt,
-                ],
-                $additional_params
-            )
-        ];
-
-        wp_ai_image_gen_debug_log("Sending request to Replicate API: " . wp_json_encode($body));
-        $api_url = "https://api.replicate.com/v1/models/{$model}/predictions";
-        wp_ai_image_gen_debug_log("API URL: " . $api_url);
-        $response = wp_remote_post(
-            $api_url,
-            [
-                'headers' => $headers,
-                'body'    => wp_json_encode($body),
-                'timeout' => 65 // Slightly longer than the Prefer wait time
-            ]
-        );
-
+        // Initialize the provider with API key and model
+        $provider_instance = new WP_AI_Image_Provider_Replicate($api_key, $model);
+        
+        // Generate the image using the provider
+        $response = $provider_instance->generate_image($prompt, $additional_params);
+        
+        // Return the response or handle any errors
         if (is_wp_error($response)) {
             throw new Exception($response->get_error_message());
         }
-
-        $body = json_decode(wp_remote_retrieve_body($response), true);
         
-        if ( ! empty( $body['output'] )) {
-            return $body;
-        } else {
-            // Add more detailed error logging here
-            wp_ai_image_gen_debug_log("Replicate API error: " . wp_json_encode($body));
-            throw new Exception('Prediction failed: ' . wp_json_encode($body));
-        }
+        return $response;
     }
 
-    if ($provider === 'openai') {
-        $api_key = wp_ai_image_gen_get_api_key('openai');
-        
-        if (empty($api_key)) {
-            throw new Exception('OpenAI API key is not set.');
-        }
-
-        $headers = [
-            'Authorization' => 'Bearer ' . $api_key,
-            'Content-Type'  => 'application/json'
-        ];
-
-        /**
-         * Prepare the request body for OpenAI.
-         * Size defaults to 1024x1024.
-         * Style defaults to vivid.
-         */
-        $body = [
-            'prompt'            => $prompt,
-            'n'                 => 1, // only 1 is supported for dall-e-3
-            'response_format'   => 'url',
-            'model'             => $model, // Include the selected model.
-        ];
-
-        // If the model is dall-e-3, use hd quality.
-        if ('dall-e-3' === $model) {
-            $body['quality'] = 'hd';
-        }
-
-        /**
-         * @todo Add style support to the body array.
-         * style
-         * string or null
-         * Optional
-         * Defaults to vivid
-         * The style of the generated images. 
-         * Must be one of vivid or natural. 
-         * Vivid causes the model to lean towards generating hyper-real and dramatic images. 
-         * Natural causes the model to produce more natural, less hyper-real looking images. 
-         * This param is only supported for dall-e-3.
-         */
-
-        wp_ai_image_gen_debug_log("Sending request to OpenAI API: " . wp_json_encode($body));
-
-        $response = wp_remote_post(
-            "https://api.openai.com/v1/images/generations",
-            [
-                'headers' => $headers,
-                'body'    => wp_json_encode($body),
-                'timeout' => 30
-            ]
-        );
-
-        if (is_wp_error($response)) {
-            throw new Exception($response->get_error_message());
-        }
-
-        $body = json_decode(wp_remote_retrieve_body($response), true);
-        
-        if (!isset($body['data'][0]['url'])) {
-            throw new Exception('Failed to generate image: ' . wp_json_encode($body));
-        }
-
-        return [$body['data'][0]['url']];
-    }
-
-    // Implement other providers here.
-
+    // For now, throw an exception for unsupported providers
     throw new Exception('Unsupported provider: ' . $provider);
 }
 
