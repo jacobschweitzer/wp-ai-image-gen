@@ -133,7 +133,7 @@ const AITab = ({ onSelect, shouldDisplay }) => {
     };
 
     // Prepare provider options for dropdown.
-    const providerOptions = Object.entries(providers).map(([id, name]) => ({ value: id, label: name }));
+    const providerOptions = Object.entries(providers).map(([id,name]) => ({ value: name, label: name }));
 
     // If shouldDisplay is false, do not render the button and modal.
     if (!shouldDisplay) {

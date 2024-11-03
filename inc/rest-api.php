@@ -4,26 +4,18 @@
  *
  * @package WP_AI_Image_Gen
  */
-
-// Include the admin.php file to access wp_ai_image_gen_get_providers()
-require_once plugin_dir_path(__FILE__) . 'admin.php';
-
-// Include the file that contains wp_ai_image_gen_download_image() function
-require_once plugin_dir_path(__FILE__) . 'image-functions.php';
-
-// At the top of the file, after the opening PHP tag
-require_once plugin_dir_path(__FILE__) . 'utils.php';
-
 /**
  * Register the REST API route for generating images.
  *
  * @return void
  */
 function wp_ai_image_gen_register_rest_route() {
-    register_rest_route('wp-ai-image-gen/v1', '/generate-image/', [
+    register_rest_route('wp-ai-image-gen/v1', '/generate-image', [
         'methods'             => 'POST',
         'callback'            => 'wp_ai_image_gen_handle_request',
-        'permission_callback' => function() { return current_user_can('edit_posts'); },
+        'permission_callback' => function() {
+            return current_user_can('edit_posts');
+        },
     ]);
 
     // Register the providers route.
@@ -47,8 +39,10 @@ add_action('rest_api_init', 'wp_ai_image_gen_register_rest_route');
  * @return WP_REST_Response|WP_Error The response object with the generated image or a WP_Error on failure.
  */
 function wp_ai_image_gen_handle_request($request) {
+
     // Retrieve the 'prompt' parameter from the request.
     $prompt = $request->get_param('prompt');
+
     // Retrieve the 'provider' parameter from the request.
     $provider = $request->get_param('provider');
     
@@ -62,11 +56,11 @@ function wp_ai_image_gen_handle_request($request) {
     ];
 
     // Retrieve the model for the given provider. If not set, assign the default model.
-    if (isset($provider_models[$provider]) && !empty($provider_models[$provider])) {
+    if (!empty($provider_models[$provider])) {
         $model = $provider_models[$provider];
     } else {
         // Assign the default model based on the provider.
-        if (isset($default_models[$provider])) {
+        if (! empty($default_models[$provider])) {
             $model = $default_models[$provider];
             // Optionally, update the provider_models option with the default model.
             $provider_models[$provider] = $model;
@@ -79,6 +73,14 @@ function wp_ai_image_gen_handle_request($request) {
             // Log that no default model is available for the provider.
             wp_ai_image_gen_debug_log("No model set and no default model available for provider {$provider}.");
         }
+    }
+
+    if ( empty( $model ) ) {
+        return new WP_Error(
+            'model_not_set', 
+            'No model set for provider: ' . $provider, 
+            ['status' => 400]
+        );
     }
 
     // Log the retrieved or default model for debugging purposes.
@@ -169,17 +171,6 @@ function wp_ai_image_gen_handle_request($request) {
             sleep($delay);
         }
     }
-}
-
-/**
- * Checks if the provided provider is valid.
- *
- * @param string $provider The provider to check.
- * @return bool True if the provider is valid, false otherwise.
- */
-function wp_ai_image_gen_is_valid_provider($provider) {
-    $valid_providers = wp_ai_image_gen_get_providers();
-    return isset($valid_providers[$provider]);
 }
 
 /**
@@ -348,28 +339,9 @@ function wp_ai_image_gen_data_uri_to_image($data_uri) {
  */
 function wp_ai_image_gen_get_providers_with_keys() {
     try {
-        // Ensure the function to get providers exists.
-        if (!function_exists('wp_ai_image_gen_get_providers')) {
-            throw new Exception('Function wp_ai_image_gen_get_providers does not exist.');
-        }
 
-        $all_providers = wp_ai_image_gen_get_providers();
-        
-        // Check if we got a valid array of providers.
-        if (!is_array($all_providers)) {
-            throw new Exception('Invalid providers data returned.');
-        }
-
-        $provider_api_keys = get_option('wp_ai_image_gen_provider_api_keys', []);
-        
-        // Check if we got a valid array of API keys.
-        if (!is_array($provider_api_keys)) {
-            throw new Exception('Invalid API keys data returned.');
-        }
-
-        $providers_with_keys = array_filter($all_providers, function($provider_id) use ($provider_api_keys) {
-            return !empty($provider_api_keys[$provider_id]);
-        }, ARRAY_FILTER_USE_KEY);
+        // Get the active providers.
+        $providers_with_keys = wp_ai_image_gen_admin()->get_active_providers();
 
         // Log successful execution.
         wp_ai_image_gen_debug_log('Successfully fetched providers with keys.');
@@ -386,4 +358,3 @@ function wp_ai_image_gen_get_providers_with_keys() {
         );
     }
 }
-

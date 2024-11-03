@@ -99,4 +99,17 @@ class WP_AI_Image_Provider_Manager {
     public function get_provider($provider_id) {
         return isset($this->providers[$provider_id]) ? $this->providers[$provider_id] : null;
     }
-} 
+}
+
+function wp_ai_image_gen_provider_manager() {
+    return WP_AI_Image_Provider_Manager::get_instance();
+}
+
+add_action('init', function() {
+    wp_ai_image_gen_provider_manager();
+});
+
+function wp_ai_image_gen_get_providers() {
+    $provider_manager = wp_ai_image_gen_provider_manager();
+    return $provider_manager->get_provider_list();
+}

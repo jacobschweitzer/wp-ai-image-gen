@@ -5,8 +5,6 @@
  * @package WP_AI_Image_Gen
  */
 
-require_once plugin_dir_path(__FILE__) . 'utils.php';
-
 /**
  * Downloads an image from a given URL.
  *

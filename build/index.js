@@ -172,7 +172,7 @@ const AITab = ({
 
   // Prepare provider options for dropdown.
   const providerOptions = Object.entries(providers).map(([id, name]) => ({
-    value: id,
+    value: name,
     label: name
   }));
 

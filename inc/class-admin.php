@@ -5,10 +5,6 @@
  * @package wp-ai-image-gen
  */
 
-// Load required files
-require_once plugin_dir_path(__FILE__) . 'interface-image-provider.php';
-require_once plugin_dir_path(__FILE__) . 'class-provider-manager.php';
-
 /**
  * Handles all WordPress admin functionality for the AI Image Generator plugin.
  */
@@ -20,16 +16,23 @@ class WP_AI_Image_Gen_Admin {
 	private static $instance = null;
 
 	/**
-	 * Holds the provider manager instance.
-	 * @var WP_AI_Image_Provider_Manager
+	 * Holds the list of providers.
+	 * @var array
 	 */
-	private $provider_manager;
+	private $providers = [];
+
+	/**
+	 * Active providers list (active prvodiers have an API key set).
+	 * @var array
+	 */
+	private $active_providers = [];
 
 	/**
 	 * Initialize the admin functionality.
 	 */
 	private function __construct() {
-		$this->provider_manager = WP_AI_Image_Provider_Manager::get_instance();
+		$this->providers = wp_ai_image_gen_get_providers();
+		$this->active_providers = $this->get_active_providers();
 		$this->init_hooks();
 	}
 
@@ -113,8 +116,7 @@ class WP_AI_Image_Gen_Admin {
 		);
 
 		// Add settings fields for each provider
-		$providers = $this->provider_manager->get_provider_list();
-		foreach ($providers as $provider_id => $provider_name) {
+		foreach ($this->providers as $provider_id => $provider_name) {
 			$this->add_provider_fields($provider_id, $provider_name);
 		}
 	}
@@ -208,7 +210,7 @@ class WP_AI_Image_Gen_Admin {
 	 * @return array An array of available models.
 	 */
 	private function get_models_for_provider($provider_id) {
-		$provider = $this->provider_manager->get_provider($provider_id);
+		$provider = wp_ai_image_gen_provider_manager()->get_provider($provider_id);
 		return $provider ? $provider->get_available_models() : [];
 	}
 
@@ -216,15 +218,13 @@ class WP_AI_Image_Gen_Admin {
 	 * Renders the providers section description.
 	 */
 	public function render_providers_section() {
-		$providers = $this->provider_manager->get_provider_list();
-		
-		if (empty($providers)) {
+		if (empty($this->providers)) {
 			wp_ai_image_gen_debug_log("No providers available in the provider list");
 			echo '<p class="notice notice-warning">No AI image providers are currently available. Please check the plugin installation.</p>';
 		} else {
-			wp_ai_image_gen_debug_log("Available providers: " . wp_json_encode($providers));
+			wp_ai_image_gen_debug_log("Available providers: " . wp_json_encode($this->providers));
 			echo '<p>Configure your API keys and models for each AI image provider.</p>';
-			echo '<p>Available providers: ' . esc_html(implode(', ', $providers)) . '</p>';
+			echo '<p>Available providers: ' . esc_html(implode(', ', $this->providers)) . '</p>';
 		}
 	}
 
@@ -280,6 +280,10 @@ class WP_AI_Image_Gen_Admin {
 	 * @param string $hook The current admin page hook.
 	 */
 	public function enqueue_scripts($hook) {
+
+		// Enqueue the main plugin script.
+		wp_enqueue_script('wp-ai-image-gen', plugin_dir_url(__FILE__) . '../build/index.js', ['wp-blocks', 'wp-i18n', 'wp-editor'], '1.0.0', true);
+
 		// Only load on our settings page
 		if ($hook !== 'settings_page_wp-ai-image-gen-settings') {
 			return;
@@ -337,11 +341,31 @@ class WP_AI_Image_Gen_Admin {
 		</script>
 		<?php
 	}
+
+	/**
+	 * Gets the list of active providers.
+	 * @return array The list of active providers.
+	 */
+	public function get_active_providers() {
+		// Get the api keys from the options table
+		$api_keys = get_option('wp_ai_image_gen_provider_api_keys', []);
+
+		// Return the providers that have an api key set
+		$active_providers = [];
+		foreach ($this->providers as $provider_id => $provider_name) {
+			if (isset($api_keys[$provider_id]) && !empty($api_keys[$provider_id])) {
+				$active_providers[] = $provider_id;
+			}
+		}
+		return $active_providers;
+	}
+}
+function wp_ai_image_gen_admin() {
+	return WP_AI_Image_Gen_Admin::get_instance();
 }
 
-// Initialize the admin functionality
 add_action('init', function() {
-	WP_AI_Image_Gen_Admin::get_instance();
+	wp_ai_image_gen_admin();
 });
 
 /**
@@ -366,54 +390,4 @@ function wp_ai_image_gen_migrate_api_keys() {
 		update_option('wp_ai_image_gen_provider_api_keys', $provider_api_keys);
 		delete_option('wp_ai_image_gen_openai_api_key');
 	}
-}
-
-/**
- * Retrieves the list of models for a given provider.
- *
- * @param string $provider_id The provider ID.
- * @return array An associative array of model IDs and names.
- */
-function wp_ai_image_gen_get_models_for_provider($provider_id) {
-	$models = [];
-
-	switch ($provider_id) {
-		case 'openai':
-			$models = [
-				'dall-e-2' => 'DALL-E 2',
-				'dall-e-3' => 'DALL-E 3',
-			];
-			break;
-		case 'replicate':
-			$models = [
-				'black-forest-labs/flux-schnell' => 'Flux Schnell by Black Forest Labs (low quality)',
-				'black-forest-labs/flux-1.1-pro' => 'Flux 1.1 Pro by Black Forest Labs (high quality)',
-				'recraft-ai/recraft-v3'          => 'Recraft V3 by Recraft AI (high quality)',
-			];
-			break;
-		// Add cases for more providers as needed.
-		default:
-			$models = [];
-			break;
-	}
-
-	return $models;
-}
-
-/**
- * Load the script.
- */
-function wp_ai_image_gen_enqueue_script() {
-	wp_enqueue_script('wp-ai-image-gen', plugin_dir_url(__FILE__) . '../build/index.js', ['wp-blocks', 'wp-i18n', 'wp-editor'], '1.0.0', true);
-}
-add_action('admin_enqueue_scripts', 'wp_ai_image_gen_enqueue_script');
-
-/**
- * Gets the list of available providers.
- *
- * @return array Associative array of provider IDs and names.
- */
-function wp_ai_image_gen_get_providers() {
-	$provider_manager = WP_AI_Image_Provider_Manager::get_instance();
-	return $provider_manager->get_provider_list();
 }

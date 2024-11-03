@@ -26,11 +26,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 define( 'WP_AI_IMAGE_GEN_DEBUG_LOG', true );
 
 // Load the admin page settings.
-if ( is_admin() ) {
-	require_once __DIR__ . '/inc/admin.php';
-}
-
-// Load the REST API functions.
+require_once __DIR__ . '/inc/class-provider-manager.php';
+require_once __DIR__ . '/inc/class-admin.php';
+require_once __DIR__ . '/inc/interface-image-provider.php';
+require_once __DIR__ . '/inc/image-functions.php';
+require_once __DIR__ . '/inc/utils.php';
 require_once __DIR__ . '/inc/rest-api.php';
 
 /**
