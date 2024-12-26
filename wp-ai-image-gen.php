@@ -32,25 +32,3 @@ require_once __DIR__ . '/inc/interface-image-provider.php';
 require_once __DIR__ . '/inc/image-functions.php';
 require_once __DIR__ . '/inc/utils.php';
 require_once __DIR__ . '/inc/rest-api.php';
-
-/**
- * Logs an error message if debug logging is enabled.
- *
- * @param string $message The error message to log.
- */
-function wp_ai_image_gen_log_error( $message ) {
-	if ( WP_AI_IMAGE_GEN_DEBUG_LOG ) {
-		error_log( $message );
-	}
-}
-
-/**
- * Logs a debug message if debug logging is enabled.
- *
- * @param string $message The debug message to log.
- */
-function wp_ai_image_gen_log_debug( $message ) {
-	if ( WP_AI_IMAGE_GEN_DEBUG_LOG ) {
-		error_log( $message );
-	}
-}
