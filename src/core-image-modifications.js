@@ -74,31 +74,42 @@ const AITab = ({ onSelect, shouldDisplay }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [prompt, setPrompt] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [providers, setProviders] = useState({});
+    const [providers, setProviders] = useState([]);
     const [selectedProvider, setSelectedProvider] = useState('');
     const [error, setError] = useState(null);
 
     // Fetch providers and last used provider when component mounts.
     useEffect(() => {
-        fetchProviders().then((result) => {
-            if (result.error) {
-                setError(result.error);
-            } else {
+        const initializeProviders = async () => {
+            try {
+                const result = await fetchProviders();
+                if (result.error) {
+                    setError(result.error);
+                    return;
+                }
+
                 setProviders(result);
-            
-                // Retrieve the last used provider from local storage.
+                
+                // Get the last used provider from localStorage
                 const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
+                
+                // Set the selected provider to either the stored one (if valid) or the first available provider
                 if (storedProvider && result.includes(storedProvider)) {
                     setSelectedProvider(storedProvider);
-                } else {
-                    // If no stored provider or it's invalid, use the first available provider.
-                    setSelectedProvider(result[0] || '');
+                } else if (result.length > 0) {
+                    setSelectedProvider(result[0]);
+                    // Save the first provider as the last used provider
+                    localStorage.setItem('wpAiImageGenLastProvider', result[0]);
                 }
+            } catch (err) {
+                setError('Failed to fetch providers: ' + err.message);
             }
-        });
+        };
+
+        initializeProviders();
     }, []);
 
-    // Update local storage when the selected provider changes.
+    // Update local storage whenever the selected provider changes
     useEffect(() => {
         if (selectedProvider) {
             localStorage.setItem('wpAiImageGenLastProvider', selectedProvider);
@@ -112,6 +123,11 @@ const AITab = ({ onSelect, shouldDisplay }) => {
         // Check if the prompt is empty or only whitespace.
         if (!prompt.trim()) {
             setError('Please enter a prompt for image generation.');
+            return;
+        }
+
+        if (!selectedProvider) {
+            setError('Please select a provider for image generation.');
             return;
         }
 
@@ -130,7 +146,10 @@ const AITab = ({ onSelect, shouldDisplay }) => {
     };
 
     // Prepare provider options for dropdown.
-    const providerOptions = providers.map(id => ({ value: id, label: id }));
+    const providerOptions = providers.map(id => ({ 
+        value: id, 
+        label: id.charAt(0).toUpperCase() + id.slice(1) // Capitalize first letter
+    }));
 
     // If shouldDisplay is false, do not render the button and modal.
     if (!shouldDisplay) {
@@ -409,26 +428,45 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
 
         // Fetch the last used provider from localStorage when the component mounts.
         useEffect(() => {
-            const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
-            if (storedProvider) {
-                setLastUsedProvider(storedProvider);
-            } else {
-                // If no provider is stored, fetch available providers and use the first one
-                fetchProviders().then((result) => {
+            const initializeProvider = async () => {
+                try {
+                    const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
+                    if (storedProvider) {
+                        // Verify the stored provider is still available
+                        const availableProviders = await fetchProviders();
+                        if (!availableProviders.error && availableProviders.includes(storedProvider)) {
+                            setLastUsedProvider(storedProvider);
+                            return;
+                        }
+                    }
+                    
+                    // If no valid stored provider, fetch and use the first available one
+                    const result = await fetchProviders();
                     if (!result.error && result.length > 0) {
                         const defaultProvider = result[0];
                         setLastUsedProvider(defaultProvider);
                         localStorage.setItem('wpAiImageGenLastProvider', defaultProvider);
                     }
-                });
-            }
+                } catch (err) {
+                    console.error('Failed to initialize provider:', err);
+                    wp.data.dispatch('core/notices').createErrorNotice(
+                        'Failed to initialize AI provider. Please try again.',
+                        { type: 'snackbar' }
+                    );
+                }
+            };
+
+            initializeProvider();
         }, []);
 
         /**
          * Handles the image regeneration process.
          */
-        const handleRegenerateImage = () => {
-            // Check if alt text exists and is not empty.
+        const handleRegenerateImage = async () => {
+            // Reset any previous errors
+            setError(null);
+
+            // Check if alt text exists and is not empty
             if (!props.attributes.alt || props.attributes.alt.trim() === '') {
                 wp.data.dispatch('core/notices').createErrorNotice(
                     'Please provide alt text to use as the image generation prompt.',
@@ -439,29 +477,62 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
 
             // Ensure we have a valid provider
             if (!lastUsedProvider) {
-                wp.data.dispatch('core/notices').createErrorNotice(
-                    'No AI provider selected. Please generate an image first.',
-                    { type: 'snackbar' }
-                );
-                return;
-            }
-
-            setIsRegenerating(true);
-            generateImage(props.attributes.alt.trim(), lastUsedProvider, (result) => {
-                setIsRegenerating(false);
-                if (result.error) {
-                    console.error('Image regeneration failed:', result.error);
+                try {
+                    // Try to fetch providers one more time
+                    const providers = await fetchProviders();
+                    if (providers.error || providers.length === 0) {
+                        wp.data.dispatch('core/notices').createErrorNotice(
+                            'No AI provider available. Please check your settings.',
+                            { type: 'snackbar' }
+                        );
+                        return;
+                    }
+                    setLastUsedProvider(providers[0]);
+                } catch (err) {
                     wp.data.dispatch('core/notices').createErrorNotice(
-                        'Failed to regenerate image: ' + result.error,
+                        'Failed to fetch AI providers. Please try again.',
                         { type: 'snackbar' }
                     );
-                } else {
-                    props.setAttributes({
-                        url: result.url,
-                        id: result.id || `ai-generated-${Date.now()}`,
-                    });
+                    return;
                 }
-            });
+            }
+
+            // Set loading state
+            setIsRegenerating(true);
+
+            try {
+                // Create a promise wrapper around generateImage
+                const result = await new Promise((resolve, reject) => {
+                    generateImage(props.attributes.alt.trim(), lastUsedProvider, (result) => {
+                        if (result.error) {
+                            reject(new Error(result.error));
+                        } else {
+                            resolve(result);
+                        }
+                    });
+                });
+
+                // Update the image attributes
+                props.setAttributes({
+                    url: result.url,
+                    id: result.id || `ai-generated-${Date.now()}`,
+                });
+
+                // Show success message
+                wp.data.dispatch('core/notices').createSuccessNotice(
+                    'Image regenerated successfully!',
+                    { type: 'snackbar' }
+                );
+            } catch (err) {
+                console.error('Image regeneration failed:', err);
+                wp.data.dispatch('core/notices').createErrorNotice(
+                    'Failed to regenerate image: ' + (err.message || 'Unknown error'),
+                    { type: 'snackbar' }
+                );
+            } finally {
+                // Always reset the loading state
+                setIsRegenerating(false);
+            }
         };
 
         // Only modify the core/image block.
