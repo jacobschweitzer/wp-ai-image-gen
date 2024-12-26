@@ -22,7 +22,7 @@ class WP_AI_Image_Gen_Admin {
 	private $providers = [];
 
 	/**
-	 * Active providers list (active prvodiers have an API key set).
+	 * Active providers list (active providers have an API key set).
 	 * @var array
 	 */
 	private $active_providers = [];
@@ -367,27 +367,3 @@ function wp_ai_image_gen_admin() {
 add_action('init', function() {
 	wp_ai_image_gen_admin();
 });
-
-/**
- * Migrates old API key options to the new structure.
- * This function should be called before registering settings.
- *
- * @return void
- */
-function wp_ai_image_gen_migrate_api_keys() {
-	$provider_api_keys = get_option('wp_ai_image_gen_provider_api_keys', []);
-	$migration_needed = false;
-
-	// Check if OpenAI key exists in old format.
-	$openai_key = get_option('wp_ai_image_gen_openai_api_key');
-	if ($openai_key && !isset($provider_api_keys['openai'])) {
-		$provider_api_keys['openai'] = $openai_key;
-		$migration_needed = true;
-	}
-
-	// Update the option if migration was needed.
-	if ($migration_needed) {
-		update_option('wp_ai_image_gen_provider_api_keys', $provider_api_keys);
-		delete_option('wp_ai_image_gen_openai_api_key');
-	}
-}
