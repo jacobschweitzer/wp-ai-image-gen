@@ -77,7 +77,6 @@ const AITab = ({ onSelect, shouldDisplay }) => {
     const [providers, setProviders] = useState({});
     const [selectedProvider, setSelectedProvider] = useState('');
     const [error, setError] = useState(null);
-    const [lastUsedProvider, setLastUsedProvider] = useState('');
 
     // Fetch providers and last used provider when component mounts.
     useEffect(() => {
@@ -89,12 +88,11 @@ const AITab = ({ onSelect, shouldDisplay }) => {
             
                 // Retrieve the last used provider from local storage.
                 const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
-                if (storedProvider && result[storedProvider]) {
+                if (storedProvider && result.includes(storedProvider)) {
                     setSelectedProvider(storedProvider);
-                    setLastUsedProvider(storedProvider);
                 } else {
                     // If no stored provider or it's invalid, use the first available provider.
-                    setSelectedProvider(Object.keys(result)[0]);
+                    setSelectedProvider(result[0] || '');
                 }
             }
         });
@@ -104,7 +102,6 @@ const AITab = ({ onSelect, shouldDisplay }) => {
     useEffect(() => {
         if (selectedProvider) {
             localStorage.setItem('wpAiImageGenLastProvider', selectedProvider);
-            setLastUsedProvider(selectedProvider);
         }
     }, [selectedProvider]);
 
@@ -133,7 +130,7 @@ const AITab = ({ onSelect, shouldDisplay }) => {
     };
 
     // Prepare provider options for dropdown.
-    const providerOptions = Object.entries(providers).map(([id,name]) => ({ value: name, label: name }));
+    const providerOptions = providers.map(id => ({ value: id, label: id }));
 
     // If shouldDisplay is false, do not render the button and modal.
     if (!shouldDisplay) {
@@ -415,6 +412,15 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
             const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
             if (storedProvider) {
                 setLastUsedProvider(storedProvider);
+            } else {
+                // If no provider is stored, fetch available providers and use the first one
+                fetchProviders().then((result) => {
+                    if (!result.error && result.length > 0) {
+                        const defaultProvider = result[0];
+                        setLastUsedProvider(defaultProvider);
+                        localStorage.setItem('wpAiImageGenLastProvider', defaultProvider);
+                    }
+                });
             }
         }, []);
 
@@ -426,6 +432,15 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
             if (!props.attributes.alt || props.attributes.alt.trim() === '') {
                 wp.data.dispatch('core/notices').createErrorNotice(
                     'Please provide alt text to use as the image generation prompt.',
+                    { type: 'snackbar' }
+                );
+                return;
+            }
+
+            // Ensure we have a valid provider
+            if (!lastUsedProvider) {
+                wp.data.dispatch('core/notices').createErrorNotice(
+                    'No AI provider selected. Please generate an image first.',
                     { type: 'snackbar' }
                 );
                 return;

@@ -339,13 +339,13 @@ function wp_ai_image_gen_data_uri_to_image($data_uri) {
  */
 function wp_ai_image_gen_get_providers_with_keys() {
     try {
-
         // Get the active providers.
         $providers_with_keys = wp_ai_image_gen_admin()->get_active_providers();
 
         // Log successful execution.
         wp_ai_image_gen_debug_log('Successfully fetched providers with keys.');
 
+        // Return the array of provider IDs directly
         return new WP_REST_Response($providers_with_keys, 200);
     } catch (Exception $e) {
         // Log the error.
@@ -353,7 +353,7 @@ function wp_ai_image_gen_get_providers_with_keys() {
 
         // Return an error response.
         return new WP_REST_Response(
-            ['message' => 'An error occurred while fetching providers: ' . $e->getMessage()],
+            ['error' => 'An error occurred while fetching providers: ' . $e->getMessage()],
             500
         );
     }
