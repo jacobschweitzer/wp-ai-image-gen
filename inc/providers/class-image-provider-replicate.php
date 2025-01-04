@@ -8,36 +8,11 @@
 /**
  * This class handles image generation using the Replicate API service.
  */
-class WP_AI_Image_Provider_Replicate implements WP_AI_Image_Provider_Interface {
+class WP_AI_Image_Provider_Replicate extends WP_AI_Image_Provider {
     /**
      * The base URL for the Replicate API.
      */
     private const API_BASE_URL = 'https://api.replicate.com/v1/models/';
-
-    /**
-     * The selected model for image generation.
-     *
-     * @var string
-     */
-    private $model;
-
-    /**
-     * The API key for authentication.
-     *
-     * @var string
-     */
-    private $api_key;
-
-    /**
-     * Constructor initializes the provider with API key and model.
-     *
-     * @param string $api_key The API key for authentication.
-     * @param string $model The selected model for image generation.
-     */
-    public function __construct($api_key, $model) {
-        $this->api_key = $api_key;
-        $this->model = $model;
-    }
 
     /**
      * Gets the unique identifier for this provider.
@@ -49,26 +24,45 @@ class WP_AI_Image_Provider_Replicate implements WP_AI_Image_Provider_Interface {
     }
 
     /**
-     * Generates an image using the Replicate API.
+     * Gets the display name for this provider.
+     *
+     * @return string The display name for this provider.
+     */
+    public function get_name() {
+        return 'Replicate';
+    }
+
+    /**
+     * Gets the request headers for the API request.
+     *
+     * @return array The request headers.
+     */
+    protected function get_request_headers() {
+        return [
+            'Authorization' => 'Token ' . $this->api_key,
+            'Content-Type'  => 'application/json',
+            'Prefer'        => 'wait=60' // Enable sync mode
+        ];
+    }
+
+    /**
+     * Makes the API request to generate an image.
      *
      * @param string $prompt The text prompt for image generation.
      * @param array $additional_params Additional parameters for image generation.
-     * @return array|WP_Error The generated image data or error.
+     * @return array|WP_Error The API response or error.
      */
-    public function generate_image($prompt, $additional_params = []) {
-        // Validate the parameters before proceeding.
-        $validation = $this->validate_parameters($prompt, $additional_params);
-        if (is_wp_error($validation)) {
-            return $validation;
+    public function make_api_request($prompt, $additional_params = []) {
+        // Check if we have a prediction ID in the additional params
+        if (!empty($additional_params['prediction_id'])) {
+            return $this->check_prediction_status($additional_params['prediction_id']);
         }
 
-        // Prepare the request headers with sync mode.
-        $headers = array_merge(
-            $this->get_request_headers(),
-            ['Prefer' => 'wait=60'] // Use sync mode with a 60-second timeout
-        );
+        // If no prediction ID, start a new prediction
+        // Prepare the request headers
+        $headers = $this->get_request_headers();
 
-        // Prepare the request body.
+        // Prepare the request body
         $body = [
             'input' => array_merge(
                 ['prompt' => $prompt],
@@ -76,39 +70,126 @@ class WP_AI_Image_Provider_Replicate implements WP_AI_Image_Provider_Interface {
             )
         ];
 
-        // Log the request details.
+        // Log the request details
         wp_ai_image_gen_debug_log("Sending request to Replicate API: " . wp_json_encode($body));
         
-        // Build the API URL with the selected model.
+        // Build the API URL with the selected model
         $api_url = self::API_BASE_URL . "{$this->model}/predictions";
         wp_ai_image_gen_debug_log("API URL: " . $api_url);
 
-        // Make the API request.
+        // Make the API request
         $response = wp_remote_post(
             $api_url,
             [
                 'headers' => $headers,
                 'body'    => wp_json_encode($body),
-                'timeout' => 65 // Slightly longer than the Prefer wait time
             ]
         );
 
-        // Handle any request errors.
         if (is_wp_error($response)) {
             return $response;
         }
 
-        // Parse the response body.
-        $body = json_decode(wp_remote_retrieve_body($response), true);
-        
-        // Check for successful output.
-        if (!empty($body['output'])) {
-            return $body;
+        // Log the response for debugging
+        wp_ai_image_gen_debug_log("Replicate API response: " . wp_json_encode($response));
+
+        return json_decode(wp_remote_retrieve_body($response), true);
+    }
+
+    /**
+     * Checks the status of a prediction.
+     *
+     * @param string $prediction_id The ID of the prediction to check.
+     * @return array|WP_Error The prediction status or error.
+     */
+    private function check_prediction_status($prediction_id) {
+        $url = "https://api.replicate.com/v1/predictions/{$prediction_id}";
+        wp_ai_image_gen_debug_log("Checking prediction status: " . $url);
+
+        $response = wp_remote_get(
+            $url,
+            [
+                'headers' => $this->get_request_headers(),
+                'timeout' => 30
+            ]
+        );
+
+        if (is_wp_error($response)) {
+            return $response;
         }
 
-        // Log and return error if the response is invalid.
-        wp_ai_image_gen_debug_log("Replicate API error: " . wp_json_encode($body));
-        return new WP_Error('replicate_error', 'Prediction failed: ' . wp_json_encode($body));
+        wp_ai_image_gen_debug_log("Replicate API response: " . wp_json_encode($response));
+
+        return json_decode(wp_remote_retrieve_body($response), true);
+    }
+
+    /**
+     * Processes the API response to extract the image URL or data.
+     *
+     * @param mixed $response The API response to process.
+     * @return string|WP_Error The image URL/data or error.
+     */
+    public function process_api_response($response) {
+        // Log the raw response for debugging
+        wp_ai_image_gen_debug_log("Raw Replicate response: " . wp_json_encode($response));
+
+        // Add more robust error checking and logging
+        if (!is_array($response)) {
+            wp_ai_image_gen_debug_log("Invalid Replicate response format (not an array): " . wp_json_encode($response));
+            return new WP_Error('replicate_error', 'Invalid response format from Replicate');
+        }
+
+        // Check for error in response
+        if (!empty($response['error'])) {
+            wp_ai_image_gen_debug_log("Replicate API error: " . wp_json_encode($response['error']));
+            return new WP_Error('replicate_error', $response['error']);
+        }
+
+        // Check the prediction status
+        $status = $response['status'] ?? 'unknown';
+        wp_ai_image_gen_debug_log("Replicate prediction status: " . $status);
+
+        switch ($status) {
+            case 'starting':
+            case 'processing':
+                // Return a special error with the prediction ID for retry
+                return new WP_Error(
+                    'replicate_pending',
+                    'Image generation is still processing',
+                    ['prediction_id' => $response['id']]
+                );
+            case 'succeeded':
+            case 'successful':
+                if (empty($response['output'])) {
+                    wp_ai_image_gen_debug_log("No output in completed Replicate response: " . wp_json_encode($response));
+                    return new WP_Error('replicate_error', 'No image data in completed response');
+                }
+
+                // Get the image data from the output
+                $image_data = is_array($response['output']) ? $response['output'][0] : $response['output'];
+                wp_ai_image_gen_debug_log('Extracted image data from Replicate: ' . $image_data);
+
+                // Check if the image_data is a complete data URI
+                if (strpos($image_data, 'data:') === 0) {
+                    wp_ai_image_gen_debug_log('Received complete data URI from Replicate');
+                    return WP_AI_Image_Handler::data_uri_to_image($image_data);
+                } elseif (filter_var($image_data, FILTER_VALIDATE_URL)) {
+                    wp_ai_image_gen_debug_log('Received valid URL from Replicate: ' . $image_data);
+                    return $image_data;
+                } else {
+                    wp_ai_image_gen_debug_log('Invalid image data format from Replicate: ' . $image_data);
+                    return new WP_Error('replicate_error', 'Invalid image data format in response');
+                }
+
+            case 'failed':
+                $error_message = $response['error'] ?? 'Image generation failed';
+                wp_ai_image_gen_debug_log("Replicate generation failed: " . $error_message);
+                return new WP_Error('replicate_failed', $error_message);
+
+            default:
+                wp_ai_image_gen_debug_log("Unknown Replicate status: " . $status);
+                return new WP_Error('replicate_error', 'Unknown prediction status: ' . $status);
+        }
     }
 
     /**
@@ -117,7 +198,7 @@ class WP_AI_Image_Provider_Replicate implements WP_AI_Image_Provider_Interface {
      * @return bool True if the API key is valid, false otherwise.
      */
     public function validate_api_key() {
-        // Replicate API keys are typically 40 characters long.
+        // Replicate API keys are typically 40 characters long
         return !empty($this->api_key) && strlen($this->api_key) === 40;
     }
 
@@ -132,93 +213,5 @@ class WP_AI_Image_Provider_Replicate implements WP_AI_Image_Provider_Interface {
             'black-forest-labs/flux-1.1-pro' => 'Flux 1.1 Pro by Black Forest Labs (high quality)',
             'recraft-ai/recraft-v3'          => 'Recraft V3 by Recraft AI (high quality)',
         ];
-    }
-
-    /**
-     * Gets custom request headers for Replicate API.
-     *
-     * @return array The headers array for the API request.
-     */
-    protected function get_request_headers() {
-        return [
-            'Authorization' => 'Bearer ' . $this->api_key,
-            'Content-Type' => 'application/json',
-        ];
-    }
-
-    /**
-     * Validates the parameters required for image generation with Replicate.
-     *
-     * @param string $prompt The generation prompt.
-     * @param array $additional_params Additional parameters.
-     * @return true|WP_Error True if valid, WP_Error if invalid.
-     */
-    protected function validate_parameters($prompt, $additional_params = []) {
-        // Check that we have a prompt.
-        if (empty($prompt)) {
-            return new WP_Error('invalid_prompt', 'Prompt cannot be empty');
-        }
-
-        // Validate Replicate-specific parameters.
-        if (!empty($additional_params)) {
-            // Check if num_outputs is within acceptable range (1-4).
-            if (isset($additional_params['num_outputs'])) {
-                $num_outputs = intval($additional_params['num_outputs']);
-                if ($num_outputs < 1 || $num_outputs > 4) {
-                    return new WP_Error(
-                        'invalid_num_outputs',
-                        'Number of outputs must be between 1 and 4'
-                    );
-                }
-            }
-
-            // Validate aspect ratio if provided.
-            if (isset($additional_params['aspect_ratio'])) {
-                $valid_ratios = ['1:1', '16:9', '9:16', '4:3', '3:4'];
-                if (!in_array($additional_params['aspect_ratio'], $valid_ratios)) {
-                    return new WP_Error(
-                        'invalid_aspect_ratio',
-                        'Invalid aspect ratio. Must be one of: ' . implode(', ', $valid_ratios)
-                    );
-                }
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Gets the currently selected model for this provider.
-     * This method returns the model identifier that is currently set for image generation.
-     *
-     * @return string The current model identifier.
-     */
-    public function get_current_model() {
-        return $this->model;
-    }
-
-    /**
-     * Sets a new model for the provider.
-     * This method validates and sets a new model for image generation, ensuring it exists in the available models list.
-     *
-     * @param string $model The new model identifier to set.
-     * @return bool True if the model was successfully set, false otherwise.
-     */
-    public function set_model($model) {
-        $available_models = $this->get_available_models();
-        if (array_key_exists($model, $available_models)) {
-            $this->model = $model;
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Gets the display name for this provider.
-     *
-     * @return string The display name for this provider.
-     */
-    public function get_name() {
-        return 'Replicate';
     }
 }

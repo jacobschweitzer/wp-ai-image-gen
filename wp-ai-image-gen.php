@@ -25,10 +25,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Set a debug log flag.
 define( 'WP_AI_IMAGE_GEN_DEBUG_LOG', true );
 
-// Load the admin page settings.
+// Load utility functions first
+require_once __DIR__ . '/inc/utils.php';
+
+// Load base classes and interfaces
+require_once __DIR__ . '/inc/class-image-handler.php';
+require_once __DIR__ . '/inc/interface-image-provider.php';
+require_once __DIR__ . '/inc/class-image-provider.php';
+
+// Load provider manager and admin classes
 require_once __DIR__ . '/inc/class-provider-manager.php';
 require_once __DIR__ . '/inc/class-admin.php';
-require_once __DIR__ . '/inc/interface-image-provider.php';
-require_once __DIR__ . '/inc/image-functions.php';
-require_once __DIR__ . '/inc/utils.php';
+
+// Load REST API functionality
 require_once __DIR__ . '/inc/rest-api.php';

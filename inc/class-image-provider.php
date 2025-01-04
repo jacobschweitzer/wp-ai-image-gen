@@ -5,11 +5,17 @@
  * @package wp-ai-image-gen
  */
 
-abstract class WP_AI_Image_Provider {
-    // This protected property stores the API key for the provider.
+abstract class WP_AI_Image_Provider implements WP_AI_Image_Provider_Interface {
+    /**
+     * The API key for the provider.
+     * @var string
+     */
     protected $api_key;
     
-    // This protected property stores the selected model for the provider.
+    /**
+     * The selected model for the provider.
+     * @var string
+     */
     protected $model;
 
     /**
@@ -22,29 +28,6 @@ abstract class WP_AI_Image_Provider {
         $this->api_key = $api_key;
         $this->model = $model;
     }
-
-    /**
-     * Abstract method that must be implemented by each provider to generate images.
-     *
-     * @param string $prompt The text prompt for image generation.
-     * @param array $additional_params Additional parameters for image generation.
-     * @return array|WP_Error The generated image data or error.
-     */
-    abstract public function generate_image($prompt, $additional_params = []);
-
-    /**
-     * Abstract method to validate the API key format.
-     *
-     * @return bool True if the API key is valid, false otherwise.
-     */
-    abstract public function validate_api_key();
-
-    /**
-     * Abstract method to get available models for the provider.
-     *
-     * @return array List of available models.
-     */
-    abstract public function get_available_models();
 
     /**
      * Gets the current model being used by the provider.
@@ -62,7 +45,7 @@ abstract class WP_AI_Image_Provider {
      * @return bool True if the model was successfully set, false otherwise.
      */
     public function set_model($model) {
-        if (in_array($model, array_keys($this->get_available_models()))) {
+        if (array_key_exists($model, $this->get_available_models())) {
             $this->model = $model;
             return true;
         }
@@ -108,4 +91,58 @@ abstract class WP_AI_Image_Provider {
 
         return true;
     }
+
+    /**
+     * Generates an image based on the provided prompt and additional parameters.
+     * This method orchestrates the image generation process.
+     *
+     * @param string $prompt The text prompt for image generation.
+     * @param array $additional_params Additional parameters for image generation.
+     * @return array|WP_Error The generated image data or error.
+     */
+    public function generate_image($prompt, $additional_params = []) {
+        // Validate parameters before proceeding
+        $validation = $this->validate_parameters($prompt, $additional_params);
+        if (is_wp_error($validation)) {
+            return $validation;
+        }
+
+        try {
+            // Make the API request
+            $response = $this->make_api_request($prompt, $additional_params);
+            if (is_wp_error($response)) {
+                return $response;
+            }
+
+            // Process the API response
+            $image_data = $this->process_api_response($response);
+            if (is_wp_error($image_data)) {
+                return $image_data;
+            }
+
+            // Upload the image to the media library
+            return WP_AI_Image_Handler::upload_to_media_library($image_data, $prompt);
+        } catch (Exception $e) {
+            return new WP_Error('generation_failed', $e->getMessage());
+        }
+    }
+
+    /**
+     * Makes the API request to generate an image.
+     * This method must be implemented by each provider.
+     *
+     * @param string $prompt The text prompt for image generation.
+     * @param array $additional_params Additional parameters for image generation.
+     * @return mixed The API response.
+     */
+    abstract public function make_api_request($prompt, $additional_params = []);
+
+    /**
+     * Processes the API response to extract the image URL or data.
+     * This method must be implemented by each provider.
+     *
+     * @param mixed $response The API response to process.
+     * @return string|WP_Error The image URL/data or error.
+     */
+    abstract public function process_api_response($response);
 }

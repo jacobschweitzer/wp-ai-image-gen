@@ -110,6 +110,10 @@ add_action('init', function() {
 });
 
 function wp_ai_image_gen_get_providers() {
-    $provider_manager = wp_ai_image_gen_provider_manager();
-    return $provider_manager->get_provider_list();
+    static $provider_list = null;
+    if (null === $provider_list) {
+        $provider_manager = wp_ai_image_gen_provider_manager();
+        $provider_list = $provider_manager->get_provider_list();
+    }
+    return $provider_list;
 }

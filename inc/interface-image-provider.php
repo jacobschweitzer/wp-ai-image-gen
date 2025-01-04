@@ -15,7 +15,34 @@ interface WP_AI_Image_Provider_Interface {
     public function get_id();
 
     /**
+     * Gets the display name for this provider.
+     *
+     * @return string The display name for this provider.
+     */
+    public function get_name();
+
+    /**
+     * Makes the API request to generate an image.
+     * This method should be implemented by each provider to handle their specific API requirements.
+     *
+     * @param string $prompt The text prompt for image generation.
+     * @param array $additional_params Additional parameters for image generation.
+     * @return array|WP_Error The generated image data or error.
+     */
+    public function make_api_request($prompt, $additional_params = []);
+
+    /**
+     * Processes the API response to extract the image URL or data.
+     * This method should be implemented by each provider to handle their specific response format.
+     *
+     * @param mixed $response The API response to process.
+     * @return string|WP_Error The image URL/data or error.
+     */
+    public function process_api_response($response);
+
+    /**
      * Generates an image based on the provided prompt and additional parameters.
+     * This method orchestrates the image generation process using make_api_request and process_api_response.
      *
      * @param string $prompt The text prompt for image generation.
      * @param array $additional_params Additional parameters for image generation.
