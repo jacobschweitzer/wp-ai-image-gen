@@ -148,7 +148,7 @@ final class WP_AI_Image_Gen_REST_Controller {
     }
 
     /**
-     * Handles image generation with retries.
+     * Handles image generation with retries and longer timeouts for slow providers.
      * @param string $provider_id The provider ID.
      * @param string $prompt The generation prompt.
      * @param string $model The model to use.
@@ -156,34 +156,48 @@ final class WP_AI_Image_Gen_REST_Controller {
      * @return WP_REST_Response|WP_Error The response or error.
      */
     private function handle_generation_with_retries($provider_id, $prompt, $model, $additional_params) {
-        $max_retries = 5;
+        $max_retries = 15;
         $retry_count = 0;
-        $delay = 1;
+        $delay = 3;
+        $max_delay = 20;
 
         while ($retry_count < $max_retries) {
             try {
-                wp_ai_image_gen_debug_log("Attempt " . ($retry_count + 1) . " - Making API request to {$provider_id}");
+                wp_ai_image_gen_debug_log("Attempt " . ($retry_count + 1) . " - Making API request");
                 
                 $result = $this->make_provider_request($provider_id, $prompt, $model, $additional_params);
                 
                 if (!is_wp_error($result)) {
-                    if (isset($result['url']) && isset($result['id'])) {
+                    // Check for completed status explicitly
+                    if (isset($result['status']) && $result['status'] === 'completed' && isset($result['url']) && isset($result['id'])) {
                         wp_ai_image_gen_debug_log("Image generated successfully: " . wp_json_encode($result));
                         return new WP_REST_Response($result, 200);
                     }
-                    throw new Exception('Invalid response format: missing URL or ID');
+                    
+                    // If we have a URL but status isn't explicitly completed, consider it successful
+                    if (isset($result['url']) && isset($result['id']) && !isset($result['status'])) {
+                        wp_ai_image_gen_debug_log("Image generated successfully (implicit): " . wp_json_encode($result));
+                        return new WP_REST_Response(array_merge($result, ['status' => 'completed']), 200);
+                    }
+                    
+                    // Handle processing status
+                    if (isset($result['status']) && ($result['status'] === 'processing' || $result['status'] === 'starting')) {
+                        wp_ai_image_gen_debug_log("Image still processing with status: " . $result['status']);
+                        throw new Exception('Image still processing');
+                    }
+                    
+                    throw new Exception('Invalid response format or incomplete generation');
                 }
 
-                // Handle pending status for providers like Replicate
-                if ($result->get_error_code() === 'replicate_pending') {
+                // Handle pending status
+                if ($result->get_error_code() === 'replicate_pending' || 
+                    $result->get_error_code() === 'processing') {
                     $error_data = $result->get_error_data();
                     if (!empty($error_data['prediction_id'])) {
                         $additional_params['prediction_id'] = $error_data['prediction_id'];
                     }
-                    // Only sleep if this isn't the first attempt
-                    if ($retry_count > 0) {
-                        sleep($delay);
-                    }
+                    sleep($delay);
+                    $delay = min($delay * 1.5, $max_delay);
                     continue;
                 }
 
@@ -191,14 +205,18 @@ final class WP_AI_Image_Gen_REST_Controller {
 
             } catch (Exception $e) {
                 $retry_count++;
+                wp_ai_image_gen_debug_log("Attempt {$retry_count} failed: " . $e->getMessage());
+                
                 if ($retry_count >= $max_retries) {
-                    return new WP_Error('api_error', 'Failed after ' . $max_retries . ' attempts: ' . $e->getMessage(), ['status' => 500]);
+                    return new WP_Error(
+                        'api_error',
+                        'Failed after ' . $max_retries . ' attempts: ' . $e->getMessage(),
+                        ['status' => 500]
+                    );
                 }
-                $delay *= 2;
-                // Only sleep if this isn't the first attempt
-                if ($retry_count > 0) {
-                    sleep($delay);
-                }
+                
+                $delay = min($delay * 1.5, $max_delay);
+                sleep($delay);
             }
         }
     }

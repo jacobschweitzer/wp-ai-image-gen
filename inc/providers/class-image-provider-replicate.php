@@ -76,7 +76,7 @@ class WP_AI_Image_Provider_Replicate extends WP_AI_Image_Provider {
             [
                 'headers' => $headers,
                 'body'    => wp_json_encode($body),
-                'timeout' => 15, // Slightly longer than the Prefer: wait=10 header
+                'timeout' => 15,
             ]
         );
 
@@ -89,39 +89,33 @@ class WP_AI_Image_Provider_Replicate extends WP_AI_Image_Provider {
 
         // If we got a completed prediction with output, return it immediately
         if (isset($body['status']) && $body['status'] === 'succeeded' && 
-            !empty($body['output']) && is_array($body['output']) && 
-            !empty($body['output'][0])) {
-            return $body;
+            isset($body['output']) && !empty($body['output'])) {
+            return [
+                'status' => 'succeeded',
+                'output' => $body['output'],
+                'id' => $body['id']
+            ];
         }
 
-        // If we have a prediction ID but it's not complete, return for polling
-        if (isset($body['id'])) {
-            return new WP_Error(
-                'replicate_pending',
-                'Image generation is in progress',
-                ['prediction_id' => $body['id']]
-            );
-        }
-
-        return new WP_Error('replicate_error', 'Failed to generate image');
+        // Return the response for polling
+        return $body;
     }
 
     /**
-     * Checks the status of a prediction with optimized polling.
+     * Checks the status of a prediction.
      * @param string $prediction_id The ID of the prediction to check.
-     * @return array|WP_Error The prediction status or error.
+     * @return array|WP_Error The status response or error.
      */
     private function check_prediction_status($prediction_id) {
-        $url = "https://api.replicate.com/v1/predictions/{$prediction_id}";
-        wp_ai_image_gen_debug_log("Checking prediction status: " . $url);
+        $headers = $this->get_request_headers();
+        $api_url = "https://api.replicate.com/v1/predictions/{$prediction_id}";
+
+        wp_ai_image_gen_debug_log("Checking prediction status: " . $api_url);
 
         $response = wp_remote_get(
-            $url,
+            $api_url,
             [
-                'headers' => array_merge(
-                    $this->get_request_headers(),
-                    ['Prefer' => 'wait=5'] // Shorter wait for status checks
-                ),
+                'headers' => $headers,
                 'timeout' => 8
             ]
         );
@@ -133,28 +127,12 @@ class WP_AI_Image_Provider_Replicate extends WP_AI_Image_Provider {
         $body = json_decode(wp_remote_retrieve_body($response), true);
         wp_ai_image_gen_debug_log("Replicate API status response: " . wp_json_encode($body));
 
-        // If we have a completed prediction with output, return it immediately
-        if (isset($body['status']) && $body['status'] === 'succeeded' && 
-            !empty($body['output']) && is_array($body['output']) && 
-            !empty($body['output'][0])) {
-            return $body;
-        }
-
-        // If still processing, return the pending error
-        if (isset($body['id'])) {
-            return new WP_Error(
-                'replicate_pending',
-                'Image generation is still processing',
-                ['prediction_id' => $body['id']]
-            );
-        }
-
-        return new WP_Error('replicate_error', 'Failed to check prediction status');
+        // Return the full response to let the process_api_response handle it
+        return $body;
     }
 
     /**
      * Processes the API response to extract the image URL or data.
-     *
      * @param mixed $response The API response to process.
      * @return string|WP_Error The image URL/data or error.
      */
@@ -174,8 +152,15 @@ class WP_AI_Image_Provider_Replicate extends WP_AI_Image_Provider {
         $status = $response['status'] ?? 'unknown';
         wp_ai_image_gen_debug_log("Replicate prediction status: " . $status);
 
-        // Only process completed predictions
-        if ($status !== 'succeeded') {
+        // Handle succeeded status with direct output URL
+        if ($status === 'succeeded' && !empty($response['output'])) {
+            $image_url = is_array($response['output']) ? $response['output'][0] : $response['output'];
+            wp_ai_image_gen_debug_log('Extracted image URL from Replicate: ' . $image_url);
+            return $image_url;
+        }
+
+        // Return pending error with prediction ID for polling
+        if (isset($response['id'])) {
             return new WP_Error(
                 'replicate_pending',
                 'Image generation is still processing',
@@ -183,25 +168,7 @@ class WP_AI_Image_Provider_Replicate extends WP_AI_Image_Provider {
             );
         }
 
-        if (empty($response['output'])) {
-            return new WP_Error('replicate_error', 'No image data in completed response');
-        }
-
-        // Get the image data from the output
-        $image_data = is_array($response['output']) ? $response['output'][0] : $response['output'];
-        wp_ai_image_gen_debug_log('Extracted image data from Replicate: ' . $image_data);
-
-        // Check if the image_data is a complete data URI
-        if (strpos($image_data, 'data:') === 0) {
-            wp_ai_image_gen_debug_log('Received complete data URI from Replicate');
-            return WP_AI_Image_Handler::data_uri_to_image($image_data);
-        } elseif (filter_var($image_data, FILTER_VALIDATE_URL)) {
-            wp_ai_image_gen_debug_log('Received valid URL from Replicate: ' . $image_data);
-            return $image_data;
-        } else {
-            wp_ai_image_gen_debug_log('Invalid image data format from Replicate: ' . $image_data);
-            return new WP_Error('replicate_error', 'Invalid image data format in response');
-        }
+        return new WP_Error('replicate_error', 'No image data in response');
     }
 
     /**
