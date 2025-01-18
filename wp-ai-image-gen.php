@@ -38,4 +38,4 @@ require_once __DIR__ . '/inc/class-provider-manager.php';
 require_once __DIR__ . '/inc/class-admin.php';
 
 // Load REST API functionality
-require_once __DIR__ . '/inc/rest-api.php';
+require_once __DIR__ . '/inc/class-rest-api.php';
