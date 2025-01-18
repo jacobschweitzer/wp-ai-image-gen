@@ -100,20 +100,24 @@ function wp_ai_image_gen_handle_request($request) {
 
     // Log the start of the image generation request.
     wp_ai_image_gen_debug_log("Starting image generation request");
+
     // Log the prompt, provider, and model being used.
     wp_ai_image_gen_debug_log("Prompt: $prompt, Provider: $provider, Model: $model");
+
     // Log the additional parameters in JSON format.
     wp_ai_image_gen_debug_log("Additional params: " . wp_json_encode($additional_params));
 
     // Set the maximum number of retry attempts.
-    $max_retries = 3;
+    $max_retries = 5;
+
     // Initialize the retry count.
     $retry_count = 0;
-    // Set the initial delay in seconds before retrying.
-    $delay = 30;
+
+    // Set the initial delay in seconds before retrying. 1, 2, 4, 8, 16.
+    $delay = 1;
 
     // Loop to handle retries.
-    while ($retry_count < $max_retries) {
+    while ( $retry_count < $max_retries ) {
         try {
             // Log the current attempt number and provider.
             wp_ai_image_gen_debug_log("Attempt " . ($retry_count + 1) . " - Making API request to $provider");
@@ -146,7 +150,7 @@ function wp_ai_image_gen_handle_request($request) {
                     $additional_params['prediction_id'] = $error_data['prediction_id'];
                 }
                 
-                sleep($delay);
+                sleep( $delay );
                 continue;
             }
             
@@ -173,8 +177,10 @@ function wp_ai_image_gen_handle_request($request) {
 
             // Implement exponential backoff by doubling the delay.
             $delay *= 2;
+
             // Log the retry attempt and the delay before the next attempt.
             wp_ai_image_gen_debug_log("Retrying in $delay seconds...");
+
             // Pause execution for the specified delay duration.
             sleep($delay);
         }
@@ -206,23 +212,23 @@ function wp_ai_image_gen_get_api_key($provider) {
  * @throws Exception If there's an error during the API request process.
  */
 function wp_ai_image_gen_make_api_request($provider, $prompt, $model, $additional_params) {
-    // Get the provider instance
-    $provider_instance = wp_ai_image_gen_provider_manager()->get_provider($provider);
+    // Get the provider instance.
+    $provider_instance = wp_ai_image_gen_provider_manager()->get_provider( $provider );
     
-    if (!$provider_instance) {
+    if ( ! $provider_instance ) {
         throw new Exception('Invalid provider: ' . $provider);
     }
 
-    // Get the API key for the provider
-    $api_key = wp_ai_image_gen_get_api_key($provider);
+    // Get the API key for the provider.
+    $api_key = wp_ai_image_gen_get_api_key( $provider );
     
-    // Create a new instance with the API key and model
+    // Create a new instance with the API key and model.
     $provider_instance = new $provider_instance($api_key, $model);
     
-    // Generate the image
+    // Generate the image.
     $result = $provider_instance->generate_image($prompt, $additional_params);
     
-    // Log the result for debugging
+    // Log the result for debugging.
     wp_ai_image_gen_debug_log("Provider generation result: " . wp_json_encode($result));
     
     return $result;
