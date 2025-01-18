@@ -10,16 +10,26 @@ class WP_AI_Image_Provider_Manager {
     private static $instance = null;
 
     /**
-     * Stores all registered provider instances.
+     * Stores all registered provider instances in a static array to persist across multiple instances.
      * @var array
      */
-    private $providers = [];
+    private static $providers = [];
+
+    /**
+     * Tracks whether providers have been loaded to prevent multiple loading attempts.
+     * @var boolean
+     */
+    private static $providers_loaded = false;
 
     /**
      * Private constructor to prevent direct instantiation.
      */
     private function __construct() {
-        $this->load_providers();
+        // Only load providers if they haven't been loaded yet
+        if (!self::$providers_loaded) {
+            $this->load_providers();
+            self::$providers_loaded = true;
+        }
     }
 
     /**
@@ -64,7 +74,7 @@ class WP_AI_Image_Provider_Manager {
                 // Create a new instance with default empty values
                 $provider_instance = new $class_name('', '');
                 if ($provider_instance instanceof WP_AI_Image_Provider_Interface) {
-                    $this->providers[$provider_instance->get_id()] = $provider_instance;
+                    self::$providers[$provider_instance->get_id()] = $provider_instance;
                     wp_ai_image_gen_debug_log("Successfully loaded provider: " . $provider_instance->get_id());
                 }
             }
@@ -76,7 +86,7 @@ class WP_AI_Image_Provider_Manager {
      * @return array Associative array of provider instances.
      */
     public function get_providers() {
-        return $this->providers;
+        return self::$providers;
     }
 
     /**
@@ -85,7 +95,7 @@ class WP_AI_Image_Provider_Manager {
      */
     public function get_provider_list() {
         $provider_list = [];
-        foreach ($this->providers as $provider) {
+        foreach (self::$providers as $provider) {
             $provider_list[$provider->get_id()] = $provider->get_name();
         }
         return $provider_list;
@@ -97,7 +107,7 @@ class WP_AI_Image_Provider_Manager {
      * @return WP_AI_Image_Provider_Interface|null The provider instance or null if not found.
      */
     public function get_provider($provider_id) {
-        return isset($this->providers[$provider_id]) ? $this->providers[$provider_id] : null;
+        return isset(self::$providers[$provider_id]) ? self::$providers[$provider_id] : null;
     }
 }
 
