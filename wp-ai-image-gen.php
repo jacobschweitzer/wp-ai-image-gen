@@ -4,7 +4,7 @@
  * Description:       A plugin to generate images using AI.
  * Requires at least: 6.1
  * Requires PHP:      7.0
- * Version:           0.1.4
+ * Version:           0.1.5
  * Author:            Jacob Schweitzer
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Set a debug log flag.
-define( 'WP_AI_IMAGE_GEN_DEBUG_LOG', true );
+define( 'WP_AI_IMAGE_GEN_DEBUG_LOG', false );
 
 // Load utility functions first
 require_once __DIR__ . '/inc/utils.php';
