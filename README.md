@@ -12,6 +12,7 @@ Includes a WordPress Gutenberg block with a prompt box that generates an image a
 - [Replicate](https://replicate.com/account/api-tokens)
 4. Add your API keys in Settings -> WP AI Image Gen in the WordPress admin.
 
+
 ## How To Gen
 1. Edit a post
 2. Insert an image block
@@ -21,7 +22,7 @@ Includes a WordPress Gutenberg block with a prompt box that generates an image a
 6. View/Edit the inserted image block (the alt text contains the prompt)
 
 ## Screenshots
-![Screenshot of the promt box and a generated image](https://github.com/jacobschweitzer/wp-ai-image-gen/blob/main/assets/screenshot.png)
+![Screenshot of the promt box and a generated image](https://github.com/user-attachments/assets/69483758-e641-45b9-a7c3-3def2109837d)
 ![1930s style movie marquee, "WP AI IMAGE GEN" is written in neon lights, excited crowd of people waiting outside](https://github.com/user-attachments/assets/11757cae-4bc5-4052-9fd3-ce1a4ef43a4c)
 
 ## Models Supported
