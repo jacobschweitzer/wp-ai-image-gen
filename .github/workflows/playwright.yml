@@ -1,48 +1,98 @@
-name: Playwright Tests
+name: Performance Tests
+
 on:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+
+# Explicitly set permissions
+permissions: {}
+
+env:
+  PUPPETEER_SKIP_DOWNLOAD: true
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: true
+  LOCAL_WP_DEBUG: false
+  LOCAL_SCRIPT_DEBUG: false
+  LOCAL_DIR: 'wordpress'
+
 jobs:
-  test:
-    timeout-minutes: 60
+  performance:
+    name: Plugin Performance Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
+
+    strategy:
+      matrix:
+        test-type: ['current', 'before']
+
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: lts/*
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ matrix.test-type == 'before' && 2 || 1 }}
+          persist-credentials: false
 
-    # Set up Docker
-    - name: Set up Docker
-      uses: docker/setup-buildx-action@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Set up Docker environment
+        uses: docker/setup-buildx-action@v3
     
-    # Install Docker Compose
-    - name: Install Docker Compose
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y docker-compose
-        sudo systemctl start docker
-        sudo chmod 666 /var/run/docker.sock
+      - name: Install Docker Compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose
+          sudo systemctl start docker
+          sudo chmod 666 /var/run/docker.sock
 
-    - name: Install dependencies
-      run: npm ci
-    - name: Install WordPress Environment
-      run: npm install -g @wordpress/env
-    - name: Start WordPress Environment
-      run: |
-        npm run test:env:start
-        npx wait-on http://localhost:8889
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
-    - name: Run Playwright tests
-      run: npx playwright test
-    - uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: playwright-report
-        path: |
-          playwright-report/
-          tests/test-results/
-        retention-days: 30
+      # Set up clean WordPress test environment
+      - name: Start WordPress Environment
+        run: |
+          npm run test:env:start
+          npx wait-on http://localhost:8889
+
+      # Import consistent test data
+      - name: Import test content
+        run: |
+          curl -O https://raw.githubusercontent.com/WordPress/theme-test-data/master/themeunittestdata.wordpress.xml
+          npm run env:cli -- import themeunittestdata.wordpress.xml --authors=create --path="/var/www/${LOCAL_DIR}"
+
+      # Configure for stable performance testing
+      - name: Configure test environment
+        run: |
+          npm run env:cli -- config set WP_HTTP_BLOCK_EXTERNAL true --raw --type=constant
+          npm run env:cli -- config set DISABLE_WP_CRON true --raw --type=constant
+
+      # Install performance monitoring plugin
+      - name: Install performance monitoring
+        run: |
+          mkdir -p "./${LOCAL_DIR}/wp-content/mu-plugins"
+          cp ./tests/performance/mu-plugins/performance-monitor.php "./${LOCAL_DIR}/wp-content/mu-plugins/"
+
+      - name: Run performance tests
+        run: npm run test:performance
+        env:
+          TEST_RESULTS_PREFIX: ${{ matrix.test-type }}
+
+      - name: Archive test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-results-${{ matrix.test-type }}-${{ github.run_id }}
+          path: artifacts
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Compare results
+        if: ${{ matrix.test-type == 'current' }}
+        run: node ./tests/performance/compare-results.js
