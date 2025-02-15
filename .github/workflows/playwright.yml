@@ -14,11 +14,17 @@ jobs:
       with:
         node-version: lts/*
 
+    # Set up Docker
+    - name: Set up Docker
+      uses: docker/setup-buildx-action@v3
+    
     # Install Docker Compose
     - name: Install Docker Compose
       run: |
         sudo apt-get update
         sudo apt-get install -y docker-compose
+        sudo systemctl start docker
+        sudo chmod 666 /var/run/docker.sock
 
     - name: Install dependencies
       run: npm ci
