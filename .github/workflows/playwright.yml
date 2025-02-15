@@ -37,6 +37,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install WordPress Environment
+        run: npm install -g @wordpress/env
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
@@ -57,10 +60,18 @@ jobs:
           echo "PHP_FPM_UID=$(id -u)" >> "$GITHUB_ENV"
           echo "PHP_FPM_GID=$(id -g)" >> "$GITHUB_ENV"
 
+      # Debug Docker status
+      - name: Debug Docker
+        run: |
+          docker ps
+          docker info
+          wp-env --version
+
       # Start WordPress environment and wait for it to be ready
       - name: Start WordPress Environment
         run: |
-          npm run test:env:start
+          wp-env start
+          sleep 10
           npx wait-on http://localhost:8889
 
       # Run the actual tests
