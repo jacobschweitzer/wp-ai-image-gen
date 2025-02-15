@@ -2,19 +2,12 @@ name: Playwright Tests
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
-# Explicitly set permissions
+# Explicitly set security permissions.
 permissions: {}
-
-env:
-  PUPPETEER_SKIP_DOWNLOAD: true
-  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: true
-  LOCAL_WP_DEBUG: false
-  LOCAL_SCRIPT_DEBUG: false
-  LOCAL_DIR: 'wordpress'
 
 jobs:
   test:
@@ -22,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 20
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -37,53 +30,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Install and configure WordPress environment.
       - name: Install WordPress Environment
         run: npm install -g @wordpress/env
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps
 
-      # Ensure Docker is set up properly
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@v3
-    
-      - name: Install Docker Compose
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y docker-compose
-          sudo systemctl start docker
-          sudo chmod 666 /var/run/docker.sock
-
-      # Configure environment variables for wp-env
-      - name: Configure environment
-        run: |
-          echo "PHP_FPM_UID=$(id -u)" >> "$GITHUB_ENV"
-          echo "PHP_FPM_GID=$(id -g)" >> "$GITHUB_ENV"
-
-      # Debug Docker status
-      - name: Debug Docker
-        run: |
-          docker ps
-          docker info
-          wp-env --version
-
-      # Start WordPress environment and wait for it to be ready
+      # Start WordPress environment and wait for it to be ready.
       - name: Start WordPress Environment
         run: |
           wp-env start
           sleep 10
           npx wait-on http://localhost:8889
 
-      # Run the actual tests
       - name: Run Playwright tests
         run: npx playwright test
 
-      # Archive test results
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: playwright-report-${{ github.run_id }}
-          path: |
-            playwright-report/
-            test-results/
+          path: playwright-report/
           retention-days: 30
