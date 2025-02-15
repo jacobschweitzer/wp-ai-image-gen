@@ -37,6 +37,12 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
+      # Install Docker Compose
+      - name: Install Docker Compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose
+
       # Start WordPress environment and wait for it to be ready.
       - name: Start WordPress Environment
         run: |
