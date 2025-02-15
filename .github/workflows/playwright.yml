@@ -35,7 +35,7 @@ jobs:
         run: npm install -g @wordpress/env
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: npx playwright install chromium --with-deps
 
       # Install Docker Compose
       - name: Install Docker Compose
@@ -46,7 +46,7 @@ jobs:
       # Start WordPress environment and wait for it to be ready.
       - name: Start WordPress Environment
         run: |
-          wp-env start
+          npx wp-env start
           sleep 10
           npx wait-on http://localhost:8889
 
