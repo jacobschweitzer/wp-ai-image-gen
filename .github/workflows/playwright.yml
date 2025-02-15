@@ -60,8 +60,7 @@ jobs:
       - name: Start WordPress Environment
         run: |
           npx wp-env start
-          sleep 10
-          npx wait-on http://localhost:8889
+          npx wait-on -t 60000 http://localhost:8889/wp-admin http://localhost:8889/wp-login.php
 
       - name: Run Playwright tests
         run: npx playwright test
