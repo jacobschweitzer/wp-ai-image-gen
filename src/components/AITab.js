@@ -101,12 +101,12 @@ const AITab = ({ onSelect, shouldDisplay }) => { // This is the AITab functional
 
     return (
         <>
-            {/* Button to open the AI image generation modal. */}
+            {/* Button to open the AI image generation modal */}
             <div className="block-editor-media-placeholder__url-input-container">
                 <Button
-                    variant="secondary" // Uses secondary styling.
-                    onClick={() => setIsModalOpen(true)} // Opens the modal when clicked.
-                    className="block-editor-media-placeholder__button is-secondary" // Additional CSS classes.
+                    variant="secondary"
+                    onClick={() => setIsModalOpen(true)}
+                    className="components-button is-next-40px-default-size is-secondary"
                 >
                     Generate AI Image
                 </Button>

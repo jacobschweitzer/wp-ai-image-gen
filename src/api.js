@@ -26,38 +26,49 @@ export const fetchProviders = async () => { // This function fetches providers u
  * @param {function} callback - The callback function to handle the generated image data.
  * @returns {Promise<void>} A promise that resolves when the image generation is complete.
  */
-export const generateImage = async ( prompt, provider, callback ) => { // This function handles image generation using the WordPress API.
+export const generateImage = async (prompt, provider, callback) => {
     try {
-        // Call the WordPress API to generate the image.
         const response = await wp.apiFetch({
             path: '/wp-ai-image-gen/v1/generate-image',
             method: 'POST',
             data: { prompt, provider },
         });
 
-        // If the response contains a valid URL, return the image data.
+        // Handle WP_Error responses which come back as objects with 'code' and 'message' properties
+        if (response.code && response.message) {
+            // Special handling for content moderation errors
+            if (response.code === 'content_moderation') {
+                throw new Error(response.message);
+            }
+            // Handle other specific error codes as needed
+            if (response.code === 'replicate_error') {
+                throw new Error('Image generation failed: ' + response.message);
+            }
+            // Generic error handling for other WP_Error responses
+            throw new Error(response.message);
+        }
+
+        // Handle successful response with URL
         if (response && response.url) {
             callback({
                 url: response.url,
                 alt: prompt,
-                id: response.id || `ai-generated-${Date.now()}`, // Use a fallback ID if none is provided.
+                id: response.id || `ai-generated-${Date.now()}`,
                 caption: '',
             });
         } else {
-            // If the response indicates NSFW content, throw an error.
-            if (response && response.error && response.error.includes('NSFW content')) {
-                throw new Error('The image could not be generated due to potential inappropriate content. Please try a different prompt.');
-            } else {
-                // Throw an error for any other invalid response.
-                throw new Error('Invalid response from server: ' + JSON.stringify(response));
-            }
+            // Handle invalid response format
+            throw new Error('Invalid response from server: ' + JSON.stringify(response));
         }
     } catch (error) {
-        // Log detailed error information.
-        console.error('Detailed error in generateImage:', error);
+        // Log detailed error information
+        console.error('Image generation failed:', error);
         if (error.message) console.error('Error message:', error.message);
         if (error.stack) console.error('Error stack:', error.stack);
-        // Call the callback with the error information.
-        callback({ error: error.message || 'Unknown error occurred' });
+        
+        // Pass the error back to the callback
+        callback({ 
+            error: error.message || 'An unknown error occurred while generating the image'
+        });
     }
 }; 

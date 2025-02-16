@@ -168,6 +168,22 @@ final class WP_AI_Image_Gen_REST_Controller {
                 $result = $this->make_provider_request($provider_id, $prompt, $model, $additional_params);
                 
                 if (!is_wp_error($result)) {
+                    // Handle failed status with content filtering error
+                    if (isset($result['status']) && $result['status'] === 'failed') {
+                        if (isset($result['error']) && strpos($result['error'], 'flagged by safety filters') !== false) {
+                            wp_ai_image_gen_debug_log("Content filtered by provider safety system: " . $result['error']);
+                            return new WP_Error(
+                                'content_filtered',
+                                'The image was flagged by the provider\'s safety filters. Please modify your prompt and try again.',
+                                ['status' => 400]
+                            );
+                        }
+                        
+                        // Handle other failure cases
+                        $error_message = isset($result['error']) ? $result['error'] : 'Unknown error occurred';
+                        throw new Exception("Generation failed: " . $error_message);
+                    }
+
                     // Check for completed status explicitly
                     if (isset($result['status']) && $result['status'] === 'completed' && isset($result['url']) && isset($result['id'])) {
                         wp_ai_image_gen_debug_log("Image generated successfully: " . wp_json_encode($result));
@@ -189,6 +205,12 @@ final class WP_AI_Image_Gen_REST_Controller {
                     throw new Exception('Invalid response format or incomplete generation');
                 }
 
+                // Handle content moderation errors (400) - return immediately without retrying
+                if ($result->get_error_code() === 'content_moderation') {
+                    wp_ai_image_gen_debug_log("Content moderation error - not retrying: " . $result->get_error_message());
+                    return $result;
+                }
+
                 // Handle pending status
                 if ($result->get_error_code() === 'replicate_pending' || 
                     $result->get_error_code() === 'processing') {
@@ -196,7 +218,7 @@ final class WP_AI_Image_Gen_REST_Controller {
                     if (!empty($error_data['prediction_id'])) {
                         $additional_params['prediction_id'] = $error_data['prediction_id'];
                     }
-                    sleep($delay);
+                    sleep((int)$delay);
                     $delay = min($delay * 1.5, $max_delay);
                     continue;
                 }
@@ -216,7 +238,7 @@ final class WP_AI_Image_Gen_REST_Controller {
                 }
                 
                 $delay = min($delay * 1.5, $max_delay);
-                sleep($delay);
+                sleep((int)$delay);
             }
         }
     }

@@ -145,12 +145,45 @@ class WP_AI_Image_Provider_Replicate extends WP_AI_Image_Provider {
 
         // Check for error in response
         if (!empty($response['error'])) {
+            // Return a user-friendly error for content moderation failures
+            if (strpos($response['error'], '400 Image generation failed') !== false) {
+                return new WP_Error(
+                    'content_moderation',
+                    'Your prompt contains content that violates AI safety guidelines. Please try rephrasing it.'
+                );
+            }
             return new WP_Error('replicate_error', $response['error']);
         }
 
         // Check the prediction status
         $status = $response['status'] ?? 'unknown';
         wp_ai_image_gen_debug_log("Replicate prediction status: " . $status);
+
+        // Handle failed status specifically
+        if ($status === 'failed') {
+            $error_message = 'Image generation failed';
+            
+            // Check both error field and logs for detailed error messages
+            $error_details = $response['error'] ?? '';
+            $logs = $response['logs'] ?? '';
+            
+            // Look for content moderation failures in both error and logs
+            if (
+                strpos($error_details . $logs, "violate Google's Responsible AI practices") !== false ||
+                strpos($error_details . $logs, "sensitive words") !== false ||
+                strpos($error_details . $logs, "content moderation") !== false
+            ) {
+                $error_message = 'Your prompt contains content that violates AI safety guidelines. Please try rephrasing it.';
+                return new WP_Error('content_moderation', $error_message);
+            }
+            
+            // Use the specific error message if available
+            if (!empty($error_details)) {
+                $error_message = $error_details;
+            }
+            
+            return new WP_Error('generation_failed', $error_message);
+        }
 
         // Handle succeeded status with direct output URL
         if ($status === 'succeeded' && !empty($response['output'])) {
@@ -184,13 +217,14 @@ class WP_AI_Image_Provider_Replicate extends WP_AI_Image_Provider {
     /**
      * Gets the available models for Replicate.
      *
-     * @return array List of available models.
+     * @return array List of available models with their display names.
      */
     public function get_available_models() {
         return [
             'black-forest-labs/flux-schnell' => 'Flux Schnell by Black Forest Labs (low quality)',
             'black-forest-labs/flux-1.1-pro' => 'Flux 1.1 Pro by Black Forest Labs (high quality)',
             'recraft-ai/recraft-v3'          => 'Recraft V3 by Recraft AI (high quality)',
+            'google/imagen-3'                => 'Imagen 3 by Google (highest quality)',
         ];
     }
 }
