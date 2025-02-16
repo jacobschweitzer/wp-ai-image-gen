@@ -189,6 +189,12 @@ final class WP_AI_Image_Gen_REST_Controller {
                     throw new Exception('Invalid response format or incomplete generation');
                 }
 
+                // Handle content moderation errors (400) - return immediately without retrying
+                if ($result->get_error_code() === 'content_moderation') {
+                    wp_ai_image_gen_debug_log("Content moderation error - not retrying: " . $result->get_error_message());
+                    return $result;
+                }
+
                 // Handle pending status
                 if ($result->get_error_code() === 'replicate_pending' || 
                     $result->get_error_code() === 'processing') {
@@ -196,7 +202,7 @@ final class WP_AI_Image_Gen_REST_Controller {
                     if (!empty($error_data['prediction_id'])) {
                         $additional_params['prediction_id'] = $error_data['prediction_id'];
                     }
-                    sleep($delay);
+                    sleep((int)$delay);
                     $delay = min($delay * 1.5, $max_delay);
                     continue;
                 }
@@ -216,7 +222,7 @@ final class WP_AI_Image_Gen_REST_Controller {
                 }
                 
                 $delay = min($delay * 1.5, $max_delay);
-                sleep($delay);
+                sleep((int)$delay);
             }
         }
     }

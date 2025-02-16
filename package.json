@@ -1,6 +1,6 @@
 {
   "name": "wp-ai-image-gen",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "A plugin to generate images using AI.",
   "author": "Jacob Schweitzer",
   "license": "GPL-2.0-or-later",
