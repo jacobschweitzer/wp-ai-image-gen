@@ -83,12 +83,18 @@ export const generateImage = async (prompt, provider, callback, options = {}) =>
 
         // Handle successful response with URL
         if (response && response.url) {
-            callback({
+            const mediaObject = {
                 url: response.url,
                 alt: prompt,
-                id: response.id || `ai-generated-${Date.now()}`,
                 caption: '',
-            });
+            };
+            
+            // Only add ID if it's a valid WordPress media ID (not a string ID or 0)
+            if (response.id && typeof response.id === 'number' && response.id > 0) {
+                mediaObject.id = response.id;
+            }
+            
+            callback(mediaObject);
         } else {
             // Handle invalid response format
             throw new Error('Invalid response from server: ' + JSON.stringify(response));

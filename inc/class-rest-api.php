@@ -222,16 +222,27 @@ final class WP_AI_Image_Gen_REST_Controller {
                         throw new Exception("Generation failed: " . $error_message);
                     }
 
-                    // Check for completed status explicitly
-                    if (isset($result['status']) && $result['status'] === 'completed' && isset($result['url']) && isset($result['id'])) {
-                        wp_ai_image_gen_debug_log("Image generated successfully: " . wp_json_encode($result));
-                        return new WP_REST_Response($result, 200);
+                    // Check if we have a WordPress attachment ID
+                    if (isset($result['url']) && isset($result['id']) && is_numeric($result['id']) && $result['id'] > 0) {
+                        wp_ai_image_gen_debug_log("Image generated and added to media library: " . wp_json_encode($result));
+                        // Format response for WordPress media
+                        $response_data = [
+                            'url' => $result['url'],
+                            'id' => intval($result['id']),
+                            'status' => 'completed'
+                        ];
+                        return new WP_REST_Response($response_data, 200);
                     }
                     
-                    // If we have a URL but status isn't explicitly completed, consider it successful
-                    if (isset($result['url']) && isset($result['id']) && !isset($result['status'])) {
-                        wp_ai_image_gen_debug_log("Image generated successfully (implicit): " . wp_json_encode($result));
-                        return new WP_REST_Response(array_merge($result, ['status' => 'completed']), 200);
+                    // Handle direct URL response without WordPress attachment
+                    if (isset($result['url'])) {
+                        wp_ai_image_gen_debug_log("Image generated with URL: " . wp_json_encode($result));
+                        // Return the result without an ID
+                        $response_data = [
+                            'url' => $result['url'],
+                            'status' => 'completed'
+                        ];
+                        return new WP_REST_Response($response_data, 200);
                     }
                     
                     // Handle processing status

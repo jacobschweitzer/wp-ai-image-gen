@@ -83,7 +83,8 @@ class WP_AI_Image_Handler {
 
         return [
             'url' => wp_get_attachment_url($attach_id),
-            'id' => $attach_id
+            'id' => $attach_id,
+            'status' => 'completed'
         ];
     }
 

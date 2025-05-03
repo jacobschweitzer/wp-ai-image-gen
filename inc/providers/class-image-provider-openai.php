@@ -313,13 +313,10 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
             }
         }
 
-        // Create a unique ID for the image
-        $image_id = 'ai-image-' . time() . '-' . wp_rand(1000, 9999);
-
-        // Return standardized response
+        // Return standardized response with a numeric ID that WordPress can handle
         $result = [
             'url' => $image_url,
-            'id' => $image_id,
+            'id' => 0, // Use 0 as a placeholder, the actual ID will be set by upload_to_media_library
             'status' => 'completed'
         ];
 
