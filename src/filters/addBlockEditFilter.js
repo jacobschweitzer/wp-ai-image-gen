@@ -151,10 +151,20 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
                 });
 
                 // Update the block attributes with the new image data.
-                props.setAttributes({
-                    url: result.url,
-                    id: result.id || `ai-generated-${Date.now()}`, // Use a fallback ID if necessary.
-                });
+                // Check if we have a valid WordPress attachment ID
+                if (result.id && typeof result.id === 'number' && result.id > 0) {
+                    // If we have a valid WP media attachment ID, use it
+                    props.setAttributes({
+                        url: result.url,
+                        id: result.id,
+                    });
+                } else {
+                    // If no ID or invalid ID, set only URL and remove ID attribute
+                    props.setAttributes({
+                        url: result.url,
+                        id: undefined, // Removes the id attribute completely
+                    });
+                }
 
                 // Display a success notice on regeneration.
                 wp.data.dispatch('core/notices').createSuccessNotice(

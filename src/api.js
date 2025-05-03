@@ -83,18 +83,25 @@ export const generateImage = async (prompt, provider, callback, options = {}) =>
 
         // Handle successful response with URL
         if (response && response.url) {
-            const mediaObject = {
-                url: response.url,
-                alt: prompt,
-                caption: '',
-            };
-            
-            // Only add ID if it's a valid WordPress media ID (not a string ID or 0)
+            // Check if we have a valid WordPress media ID (a number greater than 0)
             if (response.id && typeof response.id === 'number' && response.id > 0) {
-                mediaObject.id = response.id;
+                // This is a WordPress media library attachment with a valid ID
+                callback({
+                    url: response.url,
+                    alt: prompt,
+                    id: response.id, // Use the actual WordPress media ID
+                    caption: '',
+                });
+            } else {
+                // This is just a URL with no valid WordPress media ID
+                // Create an object without an ID to prevent 404 errors
+                callback({
+                    url: response.url,
+                    alt: prompt,
+                    caption: '',
+                    // Omit the id property completely
+                });
             }
-            
-            callback(mediaObject);
         } else {
             // Handle invalid response format
             throw new Error('Invalid response from server: ' + JSON.stringify(response));

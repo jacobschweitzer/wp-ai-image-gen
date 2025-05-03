@@ -105,17 +105,26 @@ const generateImage = async (prompt, provider, callback, options = {}) => {
 
     // Handle successful response with URL
     if (response && response.url) {
-      const mediaObject = {
-        url: response.url,
-        alt: prompt,
-        caption: ''
-      };
-
-      // Only add ID if it's a valid WordPress media ID (not a string ID or 0)
+      // Check if we have a valid WordPress media ID (a number greater than 0)
       if (response.id && typeof response.id === 'number' && response.id > 0) {
-        mediaObject.id = response.id;
+        // This is a WordPress media library attachment with a valid ID
+        callback({
+          url: response.url,
+          alt: prompt,
+          id: response.id,
+          // Use the actual WordPress media ID
+          caption: ''
+        });
+      } else {
+        // This is just a URL with no valid WordPress media ID
+        // Create an object without an ID to prevent 404 errors
+        callback({
+          url: response.url,
+          alt: prompt,
+          caption: ''
+          // Omit the id property completely
+        });
       }
-      callback(mediaObject);
     } else {
       // Handle invalid response format
       throw new Error('Invalid response from server: ' + JSON.stringify(response));
@@ -565,10 +574,20 @@ const fetchImageToImageProviders = async () => {
         });
 
         // Update the block attributes with the new image data.
-        props.setAttributes({
-          url: result.url,
-          id: result.id || `ai-generated-${Date.now()}` // Use a fallback ID if necessary.
-        });
+        // Check if we have a valid WordPress attachment ID
+        if (result.id && typeof result.id === 'number' && result.id > 0) {
+          // If we have a valid WP media attachment ID, use it
+          props.setAttributes({
+            url: result.url,
+            id: result.id
+          });
+        } else {
+          // If no ID or invalid ID, set only URL and remove ID attribute
+          props.setAttributes({
+            url: result.url,
+            id: undefined // Removes the id attribute completely
+          });
+        }
 
         // Display a success notice on regeneration.
         wp.data.dispatch('core/notices').createSuccessNotice('Image regenerated successfully!', {
@@ -773,13 +792,18 @@ __webpack_require__.r(__webpack_exports__);
             // Remove the placeholder block on error.
             replaceBlocks(placeholderBlock.clientId, []);
           } else {
-            // Create a new image block with the image details.
-            const imageBlock = wp.blocks.createBlock('core/image', {
+            // Create a new image block with the image details
+            let blockAttributes = {
               url: result.url,
               alt: result.alt,
-              caption: '',
-              id: result.id || `ai-generated-${Date.now()}` // Ensure the image block has an ID.
-            });
+              caption: ''
+            };
+
+            // Only add ID attribute if it's a valid WordPress media ID
+            if (result.id && typeof result.id === 'number' && result.id > 0) {
+              blockAttributes.id = result.id;
+            }
+            const imageBlock = wp.blocks.createBlock('core/image', blockAttributes);
             // Replace the placeholder with the new image block.
             replaceBlocks(placeholderBlock.clientId, [imageBlock]);
           }
