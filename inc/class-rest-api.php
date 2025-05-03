@@ -63,6 +63,13 @@ final class WP_AI_Image_Gen_REST_Controller {
             'callback'            => [$this, 'get_providers_with_keys'],
             'permission_callback' => [$this, 'check_permission'],
         ]);
+        
+        // Register the image-to-image providers endpoint
+        register_rest_route(self::API_NAMESPACE, '/image-to-image-providers', [
+            'methods'             => 'GET',
+            'callback'            => [$this, 'get_image_to_image_providers'],
+            'permission_callback' => [$this, 'check_permission'],
+        ]);
     }
 
     /**
@@ -132,16 +139,47 @@ final class WP_AI_Image_Gen_REST_Controller {
      * @return array The parameters.
      */
     private function get_additional_params($request) {
+        // Get saved quality settings
+        $quality_settings = get_option('wp_ai_image_gen_quality_settings', []);
+        $quality_value = isset($quality_settings['quality']) && $quality_settings['quality'] === 'hd' ? 100 : 80;
+        $style_value = isset($quality_settings['style']) ? $quality_settings['style'] : 'natural';
+        
         $defaults = [
             'num_outputs'    => 1,
             'aspect_ratio'   => '1:1',
             'output_format'  => 'webp',
-            'output_quality' => 80
+            'output_quality' => $quality_value
         ];
+        
+        // Only include style for non-GPT Image-1 models
+        $provider_models = get_option('wp_ai_image_gen_provider_models', []);
+        $model = $provider_models[$request->get_param('provider')] ?? '';
+        
+        if ($model !== 'gpt-image-1') {
+            $defaults['style'] = $style_value;
+        }
 
         $params = [];
         foreach ($defaults as $key => $default) {
             $params[$key] = $request->get_param($key) ?? $default;
+        }
+
+        // Add source image URL if provided (single or array)
+        $source_image_url = $request->get_param('source_image_url');
+        if (!empty($source_image_url)) {
+            $params['source_image_url'] = $source_image_url;
+        }
+        
+        // Add additional image URLs if provided (for multiple source images)
+        $additional_image_urls = $request->get_param('additional_image_urls');
+        if (!empty($additional_image_urls) && is_array($additional_image_urls)) {
+            $params['additional_image_urls'] = $additional_image_urls;
+        }
+        
+        // Add mask URL if provided (for inpainting)
+        $mask_url = $request->get_param('mask_url');
+        if (!empty($mask_url)) {
+            $params['mask_url'] = $mask_url;
         }
 
         return $params;
@@ -283,6 +321,24 @@ final class WP_AI_Image_Gen_REST_Controller {
             );
         }
     }
+    
+    /**
+     * Gets the list of providers that support image-to-image generation.
+     * @return WP_REST_Response The response containing providers that support image-to-image.
+     */
+    public function get_image_to_image_providers() {
+        try {
+            $image_to_image_providers = wp_ai_image_gen_provider_manager()->get_image_to_image_providers();
+            wp_ai_image_gen_debug_log('Successfully fetched image-to-image providers: ' . wp_json_encode($image_to_image_providers));
+            return new WP_REST_Response($image_to_image_providers, 200);
+        } catch (Exception $e) {
+            error_log('WP AI Image Gen Error: ' . $e->getMessage());
+            return new WP_REST_Response(
+                ['error' => 'Error fetching image-to-image providers: ' . $e->getMessage()],
+                500
+            );
+        }
+    }
 
     /**
      * Logs request details for debugging.
@@ -294,7 +350,14 @@ final class WP_AI_Image_Gen_REST_Controller {
     private function log_request_details($prompt, $provider_id, $model, $additional_params) {
         wp_ai_image_gen_debug_log("Starting image generation request");
         wp_ai_image_gen_debug_log("Prompt: {$prompt}, Provider: {$provider_id}, Model: {$model}");
-        wp_ai_image_gen_debug_log("Additional params: " . wp_json_encode($additional_params));
+        
+        // Create a copy of additional params for logging to prevent logging full image URLs
+        $log_params = $additional_params;
+        if (isset($log_params['source_image_url'])) {
+            $log_params['source_image_url'] = '(source image URL provided)';
+        }
+        
+        wp_ai_image_gen_debug_log("Additional params: " . wp_json_encode($log_params));
     }
 }
 

@@ -51,6 +51,16 @@ abstract class WP_AI_Image_Provider implements WP_AI_Image_Provider_Interface {
         }
         return false;
     }
+    
+    /**
+     * Checks if this provider supports image-to-image generation with the current model.
+     * By default, providers don't support image-to-image. Override in child classes if supported.
+     *
+     * @return bool True if image-to-image is supported, false otherwise.
+     */
+    public function supports_image_to_image() {
+        return false;
+    }
 
     /**
      * Prepares the headers for API requests.
@@ -115,13 +125,24 @@ abstract class WP_AI_Image_Provider implements WP_AI_Image_Provider_Interface {
             }
 
             // Process the API response
-            $image_data = $this->process_api_response($response);
-            if (is_wp_error($image_data)) {
-                return $image_data;
+            $result = $this->process_api_response($response);
+            if (is_wp_error($result)) {
+                return $result;
             }
 
-            // Upload the image to the media library
-            return WP_AI_Image_Handler::upload_to_media_library($image_data, $prompt);
+            // If result already has the expected format (url, id), return it directly
+            if (is_array($result) && isset($result['url']) && isset($result['id'])) {
+                return $result;
+            }
+
+            // Otherwise, handle as URL string and upload to media library
+            $image_url = $result;
+            if (is_string($image_url)) {
+                return WP_AI_Image_Handler::upload_to_media_library($image_url, $prompt);
+            }
+            
+            // Fallback for unexpected result format
+            return new WP_Error('invalid_result', 'Invalid result format from provider');
         } catch (Exception $e) {
             return new WP_Error('generation_failed', $e->getMessage());
         }

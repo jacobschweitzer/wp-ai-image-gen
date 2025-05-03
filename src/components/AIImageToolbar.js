@@ -12,6 +12,7 @@ import { Spinner, ToolbarButton, ToolbarGroup } from '@wordpress/components'; //
  * @param {Function} [props.onRegenerateImage] - Callback to handle image regeneration.
  * @param {boolean} [props.isImageBlock] - Determines if the current block is an image block.
  * @param {boolean} [props.isTextSelected] - Determines if text is selected to trigger generation.
+ * @param {boolean} [props.supportsImageToImage] - Indicates if the current provider supports image-to-image generation.
  * @returns {JSX.Element|null} Returns the toolbar with the appropriate button or null if conditions are unmet.
  */
 const AIImageToolbar = ({
@@ -21,6 +22,7 @@ const AIImageToolbar = ({
     onRegenerateImage,
     isImageBlock,
     isTextSelected,
+    supportsImageToImage,
 }) => { // This functional component returns toolbar buttons based on the context of the block.
     // Render a regenerate button if the current block is an image block.
     if (isImageBlock) {
@@ -28,7 +30,11 @@ const AIImageToolbar = ({
             <ToolbarGroup>
                 <ToolbarButton
                     icon={isRegenerating ? <Spinner /> : "update"} // Show spinner when regenerating.
-                    label={isRegenerating ? "Regenerating AI Image..." : "Regenerate AI Image"} // Button label based on state.
+                    label={isRegenerating 
+                        ? "Regenerating AI Image..." 
+                        : supportsImageToImage 
+                            ? "Regenerate AI Image (using source image)" 
+                            : "Regenerate AI Image"} // Button label based on state.
                     onClick={onRegenerateImage} // Invokes the regeneration handler.
                     disabled={isRegenerating} // Disables the button when a regeneration is in progress.
                 />
