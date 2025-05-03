@@ -298,30 +298,14 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
                 return new WP_Error('openai_error', 'Invalid base64 image data in response');
             }
             
-            // Create a temp file for the image
-            $upload_dir = wp_upload_dir();
-            $filename = 'ai-generated-' . uniqid() . '.png';
-            $filepath = $upload_dir['path'] . '/' . $filename;
-            $fileurl = $upload_dir['url'] . '/' . $filename;
-            
-            // Write the image data to the file
-            if (file_put_contents($filepath, $image_data)) {
-                $image_url = $fileurl;
-            } else {
-                wp_ai_image_gen_debug_log("Failed to save base64 image data to file");
-                return new WP_Error('openai_error', 'Failed to save image data');
-            }
+            // Return the raw image data - the parent class will handle uploading to media library
+            wp_ai_image_gen_debug_log("Successfully extracted base64 image data from OpenAI response");
+            return $image_data;
         }
 
-        // Return standardized response with a numeric ID that WordPress can handle
-        $result = [
-            'url' => $image_url,
-            'id' => 0, // Use 0 as a placeholder, the actual ID will be set by upload_to_media_library
-            'status' => 'completed'
-        ];
-
-        wp_ai_image_gen_debug_log("Successfully processed OpenAI response: " . wp_json_encode($result));
-        return $result;
+        // Just return the URL - the parent class will handle uploading to media library
+        wp_ai_image_gen_debug_log("Successfully extracted image URL from OpenAI response: " . $image_url);
+        return $image_url;
     }
 
     /**
