@@ -42,10 +42,21 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
         
         // Ultra simple implementation for GPT Image-1
         if ($this->model === 'gpt-image-1') {
-            // Absolute minimal parameters following OpenAI docs
             $body = [
                 'model'  => 'gpt-image-1',
-                'prompt' => $prompt
+                'prompt' => $prompt,
+                /**
+                 * Image quality / size	Typical output tokens.
+                 * Approx. cost as of 2025-05-03:
+                 * Low (512 × 512)	      ~250	$0.01
+                 * Medium (1024 × 1024)	 ~1 000	$0.04
+                 * High (1792 × 1024)	 ~4 250	$0.17
+                 *
+                 * Using medium quality to significantly reduce token usage (272 vs 1056/4160)
+                 */
+
+                // 
+                'quality' => 'medium',
             ];
             
             wp_ai_image_gen_debug_log("GPT Image-1 API request: " . wp_json_encode($body));
