@@ -122,13 +122,17 @@ class WP_AI_Image_Gen_Admin {
 			'wp-ai-image-gen-settings'
 		);
 		
-		// Add settings section for quality
-		add_settings_section(
-			'wp_ai_image_gen_quality_section',
-			'Image Quality Settings',
-			[$this, 'render_quality_section'],
-			'wp-ai-image-gen-settings'
-		);
+		// Add settings section for quality if gpt-image-1 is selected.
+		$saved_models = get_option('wp_ai_image_gen_provider_models', []);
+		$openai_model = isset($saved_models['openai']) ? $saved_models['openai'] : '';
+		if ($openai_model === 'gpt-image-1') {
+			add_settings_section(
+				'wp_ai_image_gen_quality_section',
+				'Image Quality Settings',
+				[$this, 'render_quality_section'],
+				'wp-ai-image-gen-settings'
+			);
+		}
 
 		// Add settings fields for each provider
 		foreach ($this->providers as $provider_id => $provider_name) {
@@ -239,94 +243,44 @@ class WP_AI_Image_Gen_Admin {
 		} else {
 			wp_ai_image_gen_debug_log("Available providers: " . wp_json_encode($this->providers));
 			echo '<p>Configure your API keys and models for each AI image provider.</p>';
-			echo '<p>Available providers: ' . esc_html(implode(', ', $this->providers)) . '</p>';
 		}
 	}
 	
 	/**
 	 * Renders the quality settings section.
+	 * Only visible when GPT Image-1 is selected.
 	 */
 	public function render_quality_section() {
-		echo '<p>Configure the quality settings for generated images.</p>';
+		// Check if OpenAI with GPT Image-1 model is selected
+		$saved_models = get_option('wp_ai_image_gen_provider_models', []);
+		$openai_model = isset($saved_models['openai']) ? $saved_models['openai'] : '';
 		
-		// Add quality toggle field
+		if ($openai_model !== 'gpt-image-1') {
+			return;
+		}
+
+		// Add quality field.
 		add_settings_field(
-			'wp_ai_image_gen_quality_toggle',
+			'wp_ai_image_gen_quality_setting',
 			'Image Quality',
-			[$this, 'render_quality_toggle_field'],
-			'wp-ai-image-gen-settings',
-			'wp_ai_image_gen_quality_section'
-		);
-		
-		// Add style field
-		add_settings_field(
-			'wp_ai_image_gen_style_setting',
-			'Image Style',
-			[$this, 'render_style_field'],
-			'wp-ai-image-gen-settings',
-			'wp_ai_image_gen_quality_section'
-		);
-		
-		// Add GPT Image-1 info field
-		add_settings_field(
-			'wp_ai_image_gen_gpt_image_info',
-			'GPT Image-1 Features',
-			[$this, 'render_gpt_image_info'],
+			[$this, 'render_quality_field'],
 			'wp-ai-image-gen-settings',
 			'wp_ai_image_gen_quality_section'
 		);
 	}
-	
+
 	/**
-	 * Renders information about GPT Image-1 features.
+	 * Renders the quality field.
 	 */
-	public function render_gpt_image_info() {
-		?>
-		<div class="gpt-image-info">
-			<p>GPT Image-1 is OpenAI's newest image generation model with advanced capabilities:</p>
-			<ul style="margin-left: 20px; list-style-type: disc;">
-				<li><strong>Multiple reference images:</strong> Combine elements from several images</li>
-				<li><strong>Image editing with masks:</strong> Selective editing with inpainting</li>
-				<li><strong>Style options:</strong> Natural for realistic images, Vivid for artistic ones</li>
-				<li><strong>Enhanced quality:</strong> Superior detail, lighting, and prompt following</li>
-			</ul>
-			<p><em>Note: Organization verification may be required in the <a href="https://platform.openai.com/settings/organization" target="_blank">OpenAI dashboard</a> to use this model.</em></p>
-		</div>
-		<?php
-	}
-	
-	/**
-	 * Renders the quality toggle field.
-	 */
-	public function render_quality_toggle_field() {
+	public function render_quality_field() {
 		$quality_settings = get_option('wp_ai_image_gen_quality_settings', []);
-		$quality = isset($quality_settings['quality']) ? $quality_settings['quality'] : 'standard';
+		$quality = isset($quality_settings['quality']) ? $quality_settings['quality'] : 'medium';
 		?>
 		<select name="wp_ai_image_gen_quality_settings[quality]">
-			<option value="standard" <?php selected($quality, 'standard'); ?>>Standard</option>
-			<option value="hd" <?php selected($quality, 'hd'); ?>>HD</option>
+			<option value="low" <?php selected($quality, 'low'); ?>>Low</option>
+			<option value="medium" <?php selected($quality, 'medium'); ?>>Medium</option>
+			<option value="high" <?php selected($quality, 'high'); ?>>High</option>
 		</select>
-		<p class="description">
-			Standard is suitable for most purposes. HD delivers higher quality images but may be slower to generate.
-		</p>
-		<?php
-	}
-	
-	/**
-	 * Renders the style field.
-	 */
-	public function render_style_field() {
-		$quality_settings = get_option('wp_ai_image_gen_quality_settings', []);
-		$style = isset($quality_settings['style']) ? $quality_settings['style'] : 'natural';
-		?>
-		<select name="wp_ai_image_gen_quality_settings[style]">
-			<option value="natural" <?php selected($style, 'natural'); ?>>Natural</option>
-			<option value="vivid" <?php selected($style, 'vivid'); ?>>Vivid</option>
-		</select>
-		<p class="description">
-			Natural style creates realistic images. Vivid style creates more vibrant, artistic images.
-			<br><em>Note: Only applies to GPT Image-1 model.</em>
-		</p>
 		<?php
 	}
 	
@@ -340,17 +294,10 @@ class WP_AI_Image_Gen_Admin {
 		$sanitized_input = [];
 		
 		// Sanitize quality
-		if (isset($input['quality']) && in_array($input['quality'], ['standard', 'hd'])) {
+		if (isset($input['quality']) && in_array($input['quality'], ['low', 'medium', 'high'])) {
 			$sanitized_input['quality'] = $input['quality'];
 		} else {
-			$sanitized_input['quality'] = 'standard';
-		}
-		
-		// Sanitize style
-		if (isset($input['style']) && in_array($input['style'], ['natural', 'vivid'])) {
-			$sanitized_input['style'] = $input['style'];
-		} else {
-			$sanitized_input['style'] = 'natural';
+			$sanitized_input['quality'] = 'medium';
 		}
 		
 		return $sanitized_input;
@@ -398,21 +345,7 @@ class WP_AI_Image_Gen_Admin {
 					<?php echo esc_html($model_name); ?>
 				</option>
 			<?php endforeach; ?>
-		</select>
-		
-		<?php if ($provider_id === 'openai'): ?>
-		<p class="description">
-			<?php if (strpos($selected, 'gpt-image') === 0): ?>
-				<strong>GPT Image-1:</strong> State-of-the-art image generation with improved detail, lighting, and composition. Supports image-to-image generation.
-			<?php elseif ($selected === 'dall-e-3'): ?>
-				<strong>DALL-E 3:</strong> High quality images with accurate text rendering and prompt following.
-			<?php elseif ($selected === 'dall-e-2'): ?>
-				<strong>DALL-E 2:</strong> Supports image variations (using existing images as reference).
-			<?php else: ?>
-				<strong>Model capabilities:</strong> DALL-E 2 supports image variations, DALL-E 3 offers higher quality, GPT Image-1 is the latest model with superb quality and image-to-image support.
-			<?php endif; ?>
-		</p>
-		<?php endif; ?>
+		</select>		
 		<?php
 	}
 

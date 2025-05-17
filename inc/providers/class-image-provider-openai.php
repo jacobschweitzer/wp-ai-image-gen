@@ -12,6 +12,11 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
     private const API_BASE_URL = 'https://api.openai.com/v1/images/generations';
 
     /**
+     * Image edit API endpoint.
+     */
+    private const IMAGE_EDIT_API_BASE_URL = 'https://api.openai.com/v1/images/edits';
+
+    /**
      * Gets the unique identifier for this provider.
      *
      * @return string The unique identifier for this provider.
@@ -37,109 +42,115 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
      * @return array|WP_Error The API response or error.
      */
     public function make_api_request($prompt, $additional_params = []) {
-        // Always use the generations endpoint
-        $endpoint = self::API_BASE_URL;
-        
-        // Ultra simple implementation for GPT Image-1
-        if ($this->model === 'gpt-image-1') {
-            $body = [
-                'model'  => 'gpt-image-1',
-                'prompt' => $prompt,
-                /**
-                 * Image quality / size	Typical output tokens.
-                 * Approx. cost as of 2025-05-03:
-                 * Low (512 × 512)	      ~250	$0.01
-                 * Medium (1024 × 1024)	 ~1 000	$0.04
-                 * High (1792 × 1024)	 ~4 250	$0.17
-                 *
-                 * Using medium quality to significantly reduce token usage (272 vs 1056/4160)
-                 */
-
-                // 
-                'quality' => 'medium',
-            ];
-            
-            wp_ai_image_gen_debug_log("GPT Image-1 API request: " . wp_json_encode($body));
-            
-            // Make the API request with only the required parameters
-            $response = wp_remote_post(
-                $endpoint,
-                [
-                    'headers' => $this->get_request_headers(),
-                    'body'    => wp_json_encode($body),
-                    'timeout' => 120, // Allow up to 2 minutes for generation
-                ]
-            );
-            
-            if (is_wp_error($response)) {
-                return $response;
-            }
-            
-            $response_body = wp_remote_retrieve_body($response);
-            $response_code = wp_remote_retrieve_response_code($response);
-            
-            // Log the response
-            wp_ai_image_gen_debug_log("Response code: " . $response_code);
-            wp_ai_image_gen_debug_log("Response body: " . $response_body);
-            
-            // Handle error responses
-            if ($response_code >= 400) {
-                wp_ai_image_gen_debug_log("Error response from OpenAI API: " . $response_body);
-                $error_data = json_decode($response_body, true);
-                
-                if (is_array($error_data) && isset($error_data['error'])) {
-                    $error_message = $error_data['error']['message'] ?? 'Unknown error';
-                    return new WP_Error('openai_error', $error_message);
-                }
-                
-                return new WP_Error('api_error', "API Error (HTTP $response_code): $response_body");
-            }
-            
-            return json_decode($response_body, true);
-        }
-        
-        // Handle DALL-E models
+        // Check if this is an image edit request
+        $is_image_edit = isset($additional_params['is_image_edit']) && $additional_params['is_image_edit'];
         $source_image_url = isset($additional_params['source_image_url']) ? $additional_params['source_image_url'] : null;
         
-        // Handle DALL-E 2 image variations differently
-        if ($this->model === 'dall-e-2' && $source_image_url) {
-            return $this->make_image_variations_request($source_image_url, $additional_params);
+        // Determine which endpoint to use
+        $endpoint = $is_image_edit ? self::IMAGE_EDIT_API_BASE_URL : self::API_BASE_URL;
+        
+        // Set up the prompt 
+        $api_prompt = $prompt;
+        
+        // Modify the prompt for image-to-image generation
+        if (!empty($source_image_url) && !$is_image_edit) {
+            $api_prompt = "Using this image as a reference ({$source_image_url}), " . $prompt;
+            wp_ai_image_gen_debug_log("Using image-to-image with GPT Image-1: {$source_image_url}");
         }
         
-        // Standard request for DALL-E models
-        $body = [
-            'model'  => $this->model,
-            'prompt' => $prompt,
-            'n'      => 1,
+        // Get quality setting from admin options
+        $quality_settings = get_option('wp_ai_image_gen_quality_settings', []);
+        $quality = isset($quality_settings['quality']) ? $quality_settings['quality'] : 'medium';
+        
+        // Map quality settings to supported values
+        $quality_map = [
+            'low' => 'low',
+            'medium' => 'medium',
+            'high' => 'high',
+            'hd' => 'high', // Map 'hd' to 'high'
+            'auto' => 'auto'
         ];
         
-        // Handle aspect ratio
-        if (isset($additional_params['aspect_ratio'])) {
-            list($width, $height) = $this->map_aspect_ratio_to_dimensions($additional_params['aspect_ratio'] ?? '1:1');
-            $body['size'] = "{$width}x{$height}";
+        // Ensure we're using a supported quality value
+        $quality = isset($quality_map[$quality]) ? $quality_map[$quality] : 'medium';
+        
+        // Prepare the request based on the type of request
+        if ($is_image_edit) {
+            // For image edit requests, we need to use multipart/form-data
+            $boundary = wp_generate_password(24, false);
+            $headers = array_merge(
+                $this->get_request_headers(),
+                ['Content-Type' => 'multipart/form-data; boundary=' . $boundary]
+            );
+            
+            // Start building the multipart body
+            $body = '';
+            
+            // Add model parameter
+            $body .= "--{$boundary}\r\n";
+            $body .= 'Content-Disposition: form-data; name="model"' . "\r\n\r\n";
+            $body .= "gpt-image-1\r\n";
+            
+            // Add prompt parameter
+            $body .= "--{$boundary}\r\n";
+            $body .= 'Content-Disposition: form-data; name="prompt"' . "\r\n\r\n";
+            $body .= $api_prompt . "\r\n";
+            
+            // Add image files
+            if (is_array($source_image_url)) {
+                foreach ($source_image_url as $index => $image_url) {
+                    $image_data = $this->get_image_data($image_url);
+                    if (is_wp_error($image_data)) {
+                        return $image_data;
+                    }
+                    
+                    $body .= "--{$boundary}\r\n";
+                    $body .= 'Content-Disposition: form-data; name="image[]"; filename="' . basename($image_url) . '"' . "\r\n";
+                    $body .= 'Content-Type: ' . $this->get_image_mime_type($image_url) . "\r\n\r\n";
+                    $body .= $image_data . "\r\n";
+                }
+            } else {
+                $image_data = $this->get_image_data($source_image_url);
+                if (is_wp_error($image_data)) {
+                    return $image_data;
+                }
+                
+                $body .= "--{$boundary}\r\n";
+                $body .= 'Content-Disposition: form-data; name="image"; filename="' . basename($source_image_url) . '"' . "\r\n";
+                $body .= 'Content-Type: ' . $this->get_image_mime_type($source_image_url) . "\r\n\r\n";
+                $body .= $image_data . "\r\n";
+            }
+            
+            // Close the multipart body
+            $body .= "--{$boundary}--\r\n";
+            
+        } else {
+            // For regular image generation requests, use JSON
+            $headers = $this->get_request_headers();
+            $body = [
+                'model'   => 'gpt-image-1',
+                'prompt'  => $api_prompt,
+                'quality' => $quality,
+            ];
+            
+            // Add size parameter if aspect ratio is specified
+            if (isset($additional_params['aspect_ratio'])) {
+                list($width, $height) = $this->map_aspect_ratio_to_dimensions($additional_params['aspect_ratio'] ?? '1:1');
+                $body['size'] = "{$width}x{$height}";
+            }
+            
+            $body = wp_json_encode($body);
         }
         
-        // Add quality if specified
-        if (isset($additional_params['output_quality']) && $additional_params['output_quality'] > 75) {
-            $body['quality'] = 'hd';
-        }
-        
-        // Add style if specified for DALL-E 3
-        if ($this->model === 'dall-e-3' && isset($additional_params['style']) && 
-            in_array($additional_params['style'], ['natural', 'vivid'])) {
-            $body['style'] = $additional_params['style'];
-        }
-        
-        // Log the request body for debugging
-        wp_ai_image_gen_debug_log("OpenAI API request: " . wp_json_encode($body));
+        wp_ai_image_gen_debug_log("OpenAI API request to: " . $endpoint);
         
         // Make the API request
         $response = wp_remote_post(
             $endpoint,
             [
-                'headers' => $this->get_request_headers(),
-                'body'    => wp_json_encode($body),
-                'timeout' => 60,
+                'headers' => $headers,
+                'body'    => $body,
+                'timeout' => 120, // Allow up to 2 minutes for generation
             ]
         );
         
@@ -161,6 +172,35 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
             
             if (is_array($error_data) && isset($error_data['error'])) {
                 $error_message = $error_data['error']['message'] ?? 'Unknown error';
+                
+                // If there's an error with the image URL in the prompt, try again with just the text prompt
+                if (!empty($source_image_url) && 
+                   (strpos($error_message, 'URL') !== false || 
+                    strpos($error_message, 'prompt') !== false)) {
+                    
+                    wp_ai_image_gen_debug_log("Error with image URL in prompt, retrying with text only");
+                    
+                    // Remove the image URL from the body and retry
+                    $body['prompt'] = $prompt;
+                    $retry_response = wp_remote_post(
+                        $endpoint,
+                        [
+                            'headers' => $this->get_request_headers(),
+                            'body'    => wp_json_encode($body),
+                            'timeout' => 120,
+                        ]
+                    );
+                    
+                    if (!is_wp_error($retry_response)) {
+                        $retry_body = wp_remote_retrieve_body($retry_response);
+                        $retry_code = wp_remote_retrieve_response_code($retry_response);
+                        
+                        if ($retry_code < 400) {
+                            return json_decode($retry_body, true);
+                        }
+                    }
+                }
+                
                 return new WP_Error('openai_error', $error_message);
             }
             
@@ -170,97 +210,6 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
         return json_decode($response_body, true);
     }
     
-    // This method is no longer used - we have a simplified direct implementation
-    private function make_minimal_request($prompt, $endpoint, $source_image_url = null) {
-        // Just in case this is still called somewhere, delegate to the main method
-        return $this->make_api_request($prompt);
-    }
-    
-    /**
-     * Makes an image variations API request for DALL-E 2.
-     *
-     * @param string $source_image_url URL of the source image.
-     * @param array $additional_params Additional parameters.
-     * @return array|WP_Error The API response or error.
-     */
-    private function make_image_variations_request($source_image_url, $additional_params) {
-        $endpoint = 'https://api.openai.com/v1/images/variations';
-        wp_ai_image_gen_debug_log("Preparing image variations request");
-        
-        // Download the source image
-        $image_data = WP_AI_Image_Handler::download_image($source_image_url);
-        if (is_wp_error($image_data)) {
-            return $image_data;
-        }
-        
-        // Prepare file for multipart form upload
-        $temp_file = wp_tempnam('openai-image-variation-');
-        file_put_contents($temp_file, $image_data);
-        
-        // Check image dimensions
-        $image_info = getimagesize($temp_file);
-        if (!$image_info) {
-            @unlink($temp_file);
-            return new WP_Error('invalid_image', 'Could not determine image dimensions or type');
-        }
-        
-        // DALL-E 2 requires square images
-        if ($image_info[0] !== $image_info[1]) {
-            @unlink($temp_file);
-            return new WP_Error(
-                'invalid_image_dimensions',
-                'Source image must be square for image variations. Please crop the image to a square first.'
-            );
-        }
-        
-        // Prepare multipart form data
-        $boundary = wp_generate_password(24, false);
-        $headers = $this->get_request_headers();
-        $headers['Content-Type'] = 'multipart/form-data; boundary=' . $boundary;
-        
-        // Build the multipart body
-        $body = '';
-        
-        // Add image file
-        $body .= '--' . $boundary . "\r\n";
-        $body .= 'Content-Disposition: form-data; name="image"; filename="image.png"' . "\r\n";
-        $body .= 'Content-Type: image/png' . "\r\n\r\n";
-        $body .= $image_data . "\r\n";
-        
-        // Add n parameter
-        $body .= '--' . $boundary . "\r\n";
-        $body .= 'Content-Disposition: form-data; name="n"' . "\r\n\r\n";
-        $body .= "1\r\n";
-        
-        // Add size parameter
-        $size = $this->map_aspect_ratio_to_size($additional_params['aspect_ratio'] ?? '1:1');
-        $body .= '--' . $boundary . "\r\n";
-        $body .= 'Content-Disposition: form-data; name="size"' . "\r\n\r\n";
-        $body .= $size . "\r\n";
-        
-        // End of multipart data
-        $body .= '--' . $boundary . '--';
-        
-        // Make the API request
-        $response = wp_remote_post(
-            $endpoint,
-            [
-                'headers' => $headers,
-                'body'    => $body,
-                'timeout' => 60,
-            ]
-        );
-        
-        // Clean up the temp file
-        @unlink($temp_file);
-        
-        if (is_wp_error($response)) {
-            return $response;
-        }
-        
-        return json_decode(wp_remote_retrieve_body($response), true);
-    }
-
     /**
      * Processes the API response to extract the image URL.
      *
@@ -349,7 +298,6 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
      */
     public function get_available_models() {
         return [
-            // Keep only GPT Image-1 model as requested
             'gpt-image-1' => 'GPT Image-1 (latest model)',
         ];
     }
@@ -360,9 +308,8 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
      * @return bool True if image-to-image is supported, false otherwise.
      */
     public function supports_image_to_image() {
-        // For now, only support DALL-E 2 for image variations to ensure basic functionality
-        // We'll enable GPT Image-1 for image-to-image once text-to-image is confirmed working
-        return $this->model === 'dall-e-2';
+        // GPT Image-1 supports image-to-image generation by including references in the prompt
+        return true;
     }
 
     /**
@@ -399,5 +346,94 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
         ];
 
         return $dimensions[$aspect_ratio] ?? [1024, 1024];
+    }
+
+    /**
+     * Makes an image edit request to the OpenAI API.
+     *
+     * @param string $prompt The text prompt for image editing.
+     * @param string $source_image_url The URL of the source image to edit.
+     * @return array|WP_Error The API response or error.
+     */
+    public function make_image_edit_request($prompt, $source_image_url) {
+        return $this->make_api_request($prompt, [
+            'is_image_edit' => true,
+            'source_image_url' => $source_image_url,
+        ]);
+    }
+
+    /**
+     * Validates an image for editing.
+     *
+     * @param string $image_url The URL of the image to validate.
+     * @return bool|WP_Error True if valid, WP_Error if invalid.
+     */
+    public function validate_image_for_edit($image_url) {
+        // Check if the image URL is valid
+        if (!filter_var($image_url, FILTER_VALIDATE_URL)) {
+            return new WP_Error('invalid_url', 'Invalid image URL provided');
+        }
+
+        // Get the image file extension
+        $extension = strtolower(pathinfo($image_url, PATHINFO_EXTENSION));
+        
+        // Check if the file type is supported
+        $supported_types = ['png', 'webp', 'jpg', 'jpeg'];
+        if (!in_array($extension, $supported_types)) {
+            return new WP_Error('unsupported_type', 'Image must be PNG, WebP, or JPG format');
+        }
+
+        // Check file size (25MB limit for GPT Image-1)
+        $response = wp_remote_head($image_url);
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $content_length = wp_remote_retrieve_header($response, 'content-length');
+        if ($content_length && $content_length > 25 * 1024 * 1024) {
+            return new WP_Error('file_too_large', 'Image must be less than 25MB');
+        }
+
+        return true;
+    }
+
+    /**
+     * Gets the image data from a URL.
+     *
+     * @param string $image_url The URL of the image.
+     * @return string|WP_Error The image data or error.
+     */
+    private function get_image_data($image_url) {
+        $response = wp_remote_get($image_url);
+        
+        if (is_wp_error($response)) {
+            return $response;
+        }
+        
+        $image_data = wp_remote_retrieve_body($response);
+        if (empty($image_data)) {
+            return new WP_Error('empty_image', 'Could not retrieve image data');
+        }
+        
+        return $image_data;
+    }
+    
+    /**
+     * Gets the MIME type of an image from its URL.
+     *
+     * @param string $image_url The URL of the image.
+     * @return string The MIME type.
+     */
+    private function get_image_mime_type($image_url) {
+        $extension = strtolower(pathinfo($image_url, PATHINFO_EXTENSION));
+        
+        $mime_types = [
+            'png'  => 'image/png',
+            'jpg'  => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'webp' => 'image/webp',
+        ];
+        
+        return $mime_types[$extension] ?? 'application/octet-stream';
     }
 }
