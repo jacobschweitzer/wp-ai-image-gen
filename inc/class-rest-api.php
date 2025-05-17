@@ -322,7 +322,6 @@ final class WP_AI_Image_Gen_REST_Controller {
     public function get_providers_with_keys() {
         try {
             $providers = wp_ai_image_gen_admin()->get_active_providers();
-            wp_ai_image_gen_debug_log('Successfully fetched providers with keys.');
             return new WP_REST_Response($providers, 200);
         } catch (Exception $e) {
             error_log('WP AI Image Gen Error: ' . $e->getMessage());
@@ -340,7 +339,6 @@ final class WP_AI_Image_Gen_REST_Controller {
     public function get_image_to_image_providers() {
         try {
             $image_to_image_providers = wp_ai_image_gen_provider_manager()->get_image_to_image_providers();
-            wp_ai_image_gen_debug_log('Successfully fetched image-to-image providers: ' . wp_json_encode($image_to_image_providers));
             return new WP_REST_Response($image_to_image_providers, 200);
         } catch (Exception $e) {
             error_log('WP AI Image Gen Error: ' . $e->getMessage());

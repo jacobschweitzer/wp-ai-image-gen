@@ -49,10 +49,7 @@ class WP_AI_Image_Provider_Manager {
     private function load_providers() {
         // Get the full path to the providers directory
         $providers_dir = plugin_dir_path(dirname(__FILE__)) . 'inc/providers/';
-        
-        // Log the providers directory path for debugging
-        wp_ai_image_gen_debug_log("Loading providers from: " . $providers_dir);
-        
+
         // Get all PHP files in the providers directory
         $provider_files = glob($providers_dir . 'class-image-provider-*.php');
         
@@ -68,14 +65,11 @@ class WP_AI_Image_Provider_Manager {
             // Convert filename like 'class-image-provider-replicate.php' to 'WP_AI_Image_Provider_Replicate'
             $class_name = str_replace(['class-', '-'], ['WP_AI_', '_'], basename($provider_file, '.php'));
             
-            wp_ai_image_gen_debug_log("Attempting to load provider: " . $class_name);
-            
             if (class_exists($class_name)) {
                 // Create a new instance with default empty values
                 $provider_instance = new $class_name('', '');
                 if ($provider_instance instanceof WP_AI_Image_Provider_Interface) {
                     self::$providers[$provider_instance->get_id()] = $provider_instance;
-                    wp_ai_image_gen_debug_log("Successfully loaded provider: " . $provider_instance->get_id());
                 }
             }
         }
