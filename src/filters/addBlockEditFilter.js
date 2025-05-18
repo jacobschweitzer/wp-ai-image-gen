@@ -86,19 +86,14 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
         /**
          * Handles the AI image regeneration process for the current image block.
          *
+         * @param {string} prompt - The prompt for image modification.
          * @returns {Promise<void>} A promise that resolves when regeneration is complete.
          */
-        const handleRegenerateImage = async () => { // This function regenerates the image.
+        const handleRegenerateImage = async (prompt) => { // This function regenerates the image.
             setError(null); // Clear any previous errors.
 
-            // Validate that there is alt text available to use as a prompt.
-            if (!props.attributes.alt || props.attributes.alt.trim() === '') {
-                wp.data.dispatch('core/notices').createErrorNotice(
-                    'Please provide alt text to use as the image generation prompt.',
-                    { type: 'snackbar' }
-                );
-                return;
-            }
+            // Use alt text as fallback if no prompt is provided
+            const finalPrompt = prompt || props.attributes.alt || "no alt text or prompt, please just enhance";
 
             // Ensure there is a valid provider in use.
             if (!lastUsedProvider) {
@@ -134,14 +129,14 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
                 const options = {};
                 if (supportsImageToImage && sourceImageUrl) {
                     options.sourceImageUrl = sourceImageUrl;
-                    console.log(`Using image-to-image generation with provider ${lastUsedProvider}`);
+                    console.log(`Using image-to-image generation with provider ${lastUsedProvider} and source image ${sourceImageUrl}`);
                 } else if (supportsImageToImage) {
                     console.log(`Provider ${lastUsedProvider} supports image-to-image but no source image is available`);
                 }
                 
                 // Wrap the generateImage call in a promise.
                 const result = await new Promise((resolve, reject) => {
-                    generateImage(props.attributes.alt.trim(), lastUsedProvider, (result) => {
+                    generateImage(finalPrompt, lastUsedProvider, (result) => {
                         if (result.error) {
                             reject(new Error(result.error));
                         } else {

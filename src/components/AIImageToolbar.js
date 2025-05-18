@@ -1,6 +1,7 @@
 // This file contains the AIImageToolbar component used in block toolbars for AI image actions.
 
-import { Spinner, ToolbarButton, ToolbarGroup } from '@wordpress/components'; // Import necessary toolbar components.
+import { useState } from '@wordpress/element';
+import { Spinner, ToolbarButton, ToolbarGroup, Modal, TextareaControl, Button } from '@wordpress/components'; // Import necessary toolbar components.
 
 /**
  * AIImageToolbar component for adding AI image generation or regeneration buttons.
@@ -23,22 +24,71 @@ const AIImageToolbar = ({
     isImageBlock,
     isTextSelected,
     supportsImageToImage,
-}) => { // This functional component returns toolbar buttons based on the context of the block.
+}) => {
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [prompt, setPrompt] = useState('');
+    const [error, setError] = useState(null);
+
+    const handleRegenerate = () => {
+        onRegenerateImage(prompt.trim());
+        setIsModalOpen(false);
+        setPrompt('');
+        setError(null);
+    };
+
     // Render a regenerate button if the current block is an image block.
     if (isImageBlock) {
         return (
-            <ToolbarGroup>
-                <ToolbarButton
-                    icon={isRegenerating ? <Spinner /> : "update"} // Show spinner when regenerating.
-                    label={isRegenerating 
-                        ? "Regenerating AI Image..." 
-                        : supportsImageToImage 
-                            ? "Regenerate AI Image (using source image)" 
-                            : "Regenerate AI Image"} // Button label based on state.
-                    onClick={onRegenerateImage} // Invokes the regeneration handler.
-                    disabled={isRegenerating} // Disables the button when a regeneration is in progress.
-                />
-            </ToolbarGroup>
+            <>
+                <ToolbarGroup>
+                    <ToolbarButton
+                        icon={isRegenerating ? <Spinner /> : "update"}
+                        label={isRegenerating 
+                            ? "Regenerating AI Image..." 
+                            : supportsImageToImage 
+                                ? "Regenerate AI Image (using source image)" 
+                                : "Regenerate AI Image"}
+                        onClick={() => setIsModalOpen(true)}
+                        disabled={isRegenerating}
+                    />
+                </ToolbarGroup>
+
+                {isModalOpen && (
+                    <Modal
+                        title="Modify AI Image"
+                        onRequestClose={() => {
+                            setIsModalOpen(false);
+                            setPrompt('');
+                            setError(null);
+                        }}
+                    >
+                        {error && <p style={{ color: 'red' }}>{error}</p>}
+                        
+                        <TextareaControl
+                            label="Enter instructions for image modification (optional)"
+                            value={prompt}
+                            onChange={setPrompt}
+                            rows={4}
+                            help="Enter specific instructions for how you want to modify the image. For example: 'Make it more vibrant', 'Add a sunset background', or 'Change the style to watercolor'. If left empty, the system will use the image's alt text or enhance the image automatically."
+                        />
+                        
+                        <Button
+                            variant="primary"
+                            onClick={handleRegenerate}
+                            disabled={isRegenerating}
+                        >
+                            {isRegenerating ? (
+                                <>
+                                    <Spinner />
+                                    Regenerating...
+                                </>
+                            ) : (
+                                'Regenerate Image'
+                            )}
+                        </Button>
+                    </Modal>
+                )}
+            </>
         );
     }
     // Render a generate button if text is selected.

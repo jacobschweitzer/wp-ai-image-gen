@@ -156,10 +156,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
-/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__);
 
 // This file contains the AIImageToolbar component used in block toolbars for AI image actions.
+
 
  // Import necessary toolbar components.
 
@@ -185,23 +188,50 @@ const AIImageToolbar = ({
   isTextSelected,
   supportsImageToImage
 }) => {
-  // This functional component returns toolbar buttons based on the context of the block.
+  const [isModalOpen, setIsModalOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(false);
+  const [prompt, setPrompt] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)('');
+  const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(null);
+  const handleRegenerate = () => {
+    onRegenerateImage(prompt.trim());
+    setIsModalOpen(false);
+    setPrompt('');
+    setError(null);
+  };
+
   // Render a regenerate button if the current block is an image block.
   if (isImageBlock) {
-    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_1__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_1__.ToolbarButton, {
-      icon: isRegenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_1__.Spinner, null) : "update" // Show spinner when regenerating.
-      ,
-      label: isRegenerating ? "Regenerating AI Image..." : supportsImageToImage ? "Regenerate AI Image (using source image)" : "Regenerate AI Image" // Button label based on state.
-      ,
-      onClick: onRegenerateImage // Invokes the regeneration handler.
-      ,
-      disabled: isRegenerating // Disables the button when a regeneration is in progress.
-    }));
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.ToolbarButton, {
+      icon: isRegenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, null) : "update",
+      label: isRegenerating ? "Regenerating AI Image..." : supportsImageToImage ? "Regenerate AI Image (using source image)" : "Regenerate AI Image",
+      onClick: () => setIsModalOpen(true),
+      disabled: isRegenerating
+    })), isModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Modal, {
+      title: "Modify AI Image",
+      onRequestClose: () => {
+        setIsModalOpen(false);
+        setPrompt('');
+        setError(null);
+      }
+    }, error && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
+      style: {
+        color: 'red'
+      }
+    }, error), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextareaControl, {
+      label: "Enter instructions for image modification (optional)",
+      value: prompt,
+      onChange: setPrompt,
+      rows: 4,
+      help: "Enter specific instructions for how you want to modify the image. For example: 'Make it more vibrant', 'Add a sunset background', or 'Change the style to watercolor'. If left empty, the system will use the image's alt text or enhance the image automatically."
+    }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+      variant: "primary",
+      onClick: handleRegenerate,
+      disabled: isRegenerating
+    }, isRegenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, null), "Regenerating...") : 'Regenerate Image')));
   }
   // Render a generate button if text is selected.
   else if (isTextSelected) {
-    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_1__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_1__.ToolbarButton, {
-      icon: isGenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_1__.Spinner, null) : "format-image" // Show spinner when generating.
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.ToolbarButton, {
+      icon: isGenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, null) : "format-image" // Show spinner when generating.
       ,
       label: isGenerating ? "Generating AI Image..." : "Generate AI Image" // Button label based on generation status.
       ,
@@ -512,19 +542,15 @@ const fetchImageToImageProviders = async () => {
     /**
      * Handles the AI image regeneration process for the current image block.
      *
+     * @param {string} prompt - The prompt for image modification.
      * @returns {Promise<void>} A promise that resolves when regeneration is complete.
      */
-    const handleRegenerateImage = async () => {
+    const handleRegenerateImage = async prompt => {
       // This function regenerates the image.
       setError(null); // Clear any previous errors.
 
-      // Validate that there is alt text available to use as a prompt.
-      if (!props.attributes.alt || props.attributes.alt.trim() === '') {
-        wp.data.dispatch('core/notices').createErrorNotice('Please provide alt text to use as the image generation prompt.', {
-          type: 'snackbar'
-        });
-        return;
-      }
+      // Use alt text as fallback if no prompt is provided
+      const finalPrompt = prompt || props.attributes.alt || "no alt text or prompt, please just enhance";
 
       // Ensure there is a valid provider in use.
       if (!lastUsedProvider) {
@@ -557,14 +583,14 @@ const fetchImageToImageProviders = async () => {
         const options = {};
         if (supportsImageToImage && sourceImageUrl) {
           options.sourceImageUrl = sourceImageUrl;
-          console.log(`Using image-to-image generation with provider ${lastUsedProvider}`);
+          console.log(`Using image-to-image generation with provider ${lastUsedProvider} and source image ${sourceImageUrl}`);
         } else if (supportsImageToImage) {
           console.log(`Provider ${lastUsedProvider} supports image-to-image but no source image is available`);
         }
 
         // Wrap the generateImage call in a promise.
         const result = await new Promise((resolve, reject) => {
-          (0,_api__WEBPACK_IMPORTED_MODULE_5__.generateImage)(props.attributes.alt.trim(), lastUsedProvider, result => {
+          (0,_api__WEBPACK_IMPORTED_MODULE_5__.generateImage)(finalPrompt, lastUsedProvider, result => {
             if (result.error) {
               reject(new Error(result.error));
             } else {

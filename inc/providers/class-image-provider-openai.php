@@ -42,19 +42,41 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
      * @return array|WP_Error The API response or error.
      */
     public function make_api_request($prompt, $additional_params = []) {
-        // Check if this is an image edit request
-        $is_image_edit = isset($additional_params['is_image_edit']) && $additional_params['is_image_edit'];
-        $source_image_url = isset($additional_params['source_image_url']) ? $additional_params['source_image_url'] : null;
-        
-        // Determine which endpoint to use
-        $endpoint = $is_image_edit ? self::IMAGE_EDIT_API_BASE_URL : self::API_BASE_URL;
-        
-        // Set up the prompt 
-        $api_prompt = $prompt;
-        
-        // Modify the prompt for image-to-image generation
-        if (!empty($source_image_url) && !$is_image_edit) {
-            $api_prompt = "Using this image as a reference ({$source_image_url}), " . $prompt;
+        $source_image_url = $additional_params['source_image_url'] ?? null;
+        $max_retries = 3; // Reduce max retries to fail faster
+        $timeout = 60; // Set request timeout to 60 seconds
+        $retry_delay = 2; // Seconds to wait between retries
+
+        // Add filter to ensure WordPress respects our timeout settings
+        add_filter('http_request_timeout', function() use ($timeout) {
+            return $timeout;
+        });
+
+        // Add filter to set cURL options
+        add_filter('http_request_args', function($args) use ($timeout) {
+            $args['timeout'] = $timeout;
+            $args['httpversion'] = '1.1';
+            $args['sslverify'] = true;
+            $args['blocking'] = true;
+            
+            // Set cURL options directly
+            if (!isset($args['curl'])) {
+                $args['curl'] = [];
+            }
+            $args['curl'][CURLOPT_TIMEOUT] = $timeout;
+            $args['curl'][CURLOPT_CONNECTTIMEOUT] = 10;
+            $args['curl'][CURLOPT_LOW_SPEED_TIME] = 30; // Increased low speed time
+            $args['curl'][CURLOPT_LOW_SPEED_LIMIT] = 1024; // 1KB/s minimum speed
+            
+            return $args;
+        });
+
+        // Default to API_BASE_URL.
+        $endpoint = self::API_BASE_URL;
+
+        // Log if we're using image-to-image
+        if ( ! empty( $source_image_url ) ) {
+            $endpoint = self::IMAGE_EDIT_API_BASE_URL;
             wp_ai_image_gen_debug_log("Using image-to-image with GPT Image-1: {$source_image_url}");
         }
         
@@ -75,7 +97,7 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
         $quality = isset($quality_map[$quality]) ? $quality_map[$quality] : 'medium';
         
         // Prepare the request based on the type of request
-        if ($is_image_edit) {
+        if ( ! empty( $source_image_url ) ) {
             // For image edit requests, we need to use multipart/form-data
             $boundary = wp_generate_password(24, false);
             $headers = array_merge(
@@ -94,7 +116,7 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
             // Add prompt parameter
             $body .= "--{$boundary}\r\n";
             $body .= 'Content-Disposition: form-data; name="prompt"' . "\r\n\r\n";
-            $body .= $api_prompt . "\r\n";
+            $body .= $prompt . "\r\n";
             
             // Add image files
             if (is_array($source_image_url)) {
@@ -129,7 +151,7 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
             $headers = $this->get_request_headers();
             $body = [
                 'model'   => 'gpt-image-1',
-                'prompt'  => $api_prompt,
+                'prompt'  => $prompt,
                 'quality' => $quality,
             ];
             
@@ -144,70 +166,101 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
         
         wp_ai_image_gen_debug_log("OpenAI API request to: " . $endpoint);
         
-        // Make the API request
-        $response = wp_remote_post(
-            $endpoint,
-            [
-                'headers' => $headers,
-                'body'    => $body,
-                'timeout' => 120, // Allow up to 2 minutes for generation
-            ]
-        );
+        // Make the API request with retries
+        $attempt = 0;
+        $last_error = null;
         
-        if (is_wp_error($response)) {
-            return $response;
-        }
-        
-        $response_body = wp_remote_retrieve_body($response);
-        $response_code = wp_remote_retrieve_response_code($response);
-        
-        // Log the response
-        wp_ai_image_gen_debug_log("Response code: " . $response_code);
-        wp_ai_image_gen_debug_log("Response body: " . $response_body);
-        
-        // Handle error responses
-        if ($response_code >= 400) {
-            wp_ai_image_gen_debug_log("Error response from OpenAI API: " . $response_body);
-            $error_data = json_decode($response_body, true);
+        while ($attempt < $max_retries) {
+            $attempt++;
+            wp_ai_image_gen_debug_log("Attempt {$attempt} of {$max_retries}");
             
-            if (is_array($error_data) && isset($error_data['error'])) {
-                $error_message = $error_data['error']['message'] ?? 'Unknown error';
+            $response = wp_remote_post(
+                $endpoint,
+                [
+                    'headers' => $headers,
+                    'body'    => $body,
+                    'timeout' => $timeout,
+                ]
+            );
+            
+            if (is_wp_error($response)) {
+                $last_error = $response;
+                $error_message = $response->get_error_message();
                 
-                // If there's an error with the image URL in the prompt, try again with just the text prompt
-                if (!empty($source_image_url) && 
-                   (strpos($error_message, 'URL') !== false || 
-                    strpos($error_message, 'prompt') !== false)) {
-                    
-                    wp_ai_image_gen_debug_log("Error with image URL in prompt, retrying with text only");
-                    
-                    // Remove the image URL from the body and retry
-                    $body['prompt'] = $prompt;
-                    $retry_response = wp_remote_post(
-                        $endpoint,
-                        [
-                            'headers' => $this->get_request_headers(),
-                            'body'    => wp_json_encode($body),
-                            'timeout' => 120,
-                        ]
-                    );
-                    
-                    if (!is_wp_error($retry_response)) {
-                        $retry_body = wp_remote_retrieve_body($retry_response);
-                        $retry_code = wp_remote_retrieve_response_code($retry_response);
-                        
-                        if ($retry_code < 400) {
-                            return json_decode($retry_body, true);
-                        }
+                // Check if it's a timeout error
+                if (strpos($error_message, 'timeout') !== false) {
+                    wp_ai_image_gen_debug_log("Timeout error on attempt {$attempt}: {$error_message}");
+                    if ($attempt < $max_retries) {
+                        wp_ai_image_gen_debug_log("Waiting {$retry_delay} seconds before retry...");
+                        sleep($retry_delay);
+                        continue;
                     }
                 }
                 
-                return new WP_Error('openai_error', $error_message);
+                // For other errors, return immediately
+                wp_ai_image_gen_debug_log("Error on attempt {$attempt}: {$error_message}");
+                return $response;
             }
             
-            return new WP_Error('api_error', "API Error (HTTP $response_code): $response_body");
+            $response_body = wp_remote_retrieve_body($response);
+            $response_code = wp_remote_retrieve_response_code($response);
+            
+            // Log the response
+            wp_ai_image_gen_debug_log("Response code: " . $response_code);
+            wp_ai_image_gen_debug_log("Response body: " . $response_body);
+            
+            // Handle error responses
+            if ($response_code >= 400) {
+                wp_ai_image_gen_debug_log("Error response from OpenAI API: " . $response_body);
+                $error_data = json_decode($response_body, true);
+                
+                if (is_array($error_data) && isset($error_data['error'])) {
+                    $error_message = $error_data['error']['message'] ?? 'Unknown error';
+                    
+                    // If there's an error with the image URL in the prompt, try again with just the text prompt
+                    if (!empty($source_image_url) && 
+                       (strpos($error_message, 'URL') !== false || 
+                        strpos($error_message, 'prompt') !== false)) {
+                        
+                        wp_ai_image_gen_debug_log("Error with image URL in prompt, retrying with text only");
+                        
+                        // Remove the image URL from the body and retry
+                        $body['prompt'] = $prompt;
+                        $retry_response = wp_remote_post(
+                            $endpoint,
+                            [
+                                'headers' => $this->get_request_headers(),
+                                'body'    => wp_json_encode($body),
+                                'timeout' => $timeout,
+                            ]
+                        );
+                        
+                        if (!is_wp_error($retry_response)) {
+                            $retry_body = wp_remote_retrieve_body($retry_response);
+                            $retry_code = wp_remote_retrieve_response_code($retry_response);
+                            
+                            if ($retry_code < 400) {
+                                return json_decode($retry_body, true);
+                            }
+                        }
+                    }
+                    
+                    return new WP_Error('openai_error', $error_message);
+                }
+                
+                return new WP_Error('api_error', "API Error (HTTP $response_code): $response_body");
+            }
+            
+            // Success! Return the response
+            return json_decode($response_body, true);
         }
         
-        return json_decode($response_body, true);
+        // If we get here, all retries failed
+        if ($last_error) {
+            return $last_error;
+        }
+        
+        return new WP_Error('max_retries_exceeded', 'Maximum retry attempts exceeded');
     }
     
     /**
@@ -346,20 +399,6 @@ class WP_AI_Image_Provider_OpenAI extends WP_AI_Image_Provider {
         ];
 
         return $dimensions[$aspect_ratio] ?? [1024, 1024];
-    }
-
-    /**
-     * Makes an image edit request to the OpenAI API.
-     *
-     * @param string $prompt The text prompt for image editing.
-     * @param string $source_image_url The URL of the source image to edit.
-     * @return array|WP_Error The API response or error.
-     */
-    public function make_image_edit_request($prompt, $source_image_url) {
-        return $this->make_api_request($prompt, [
-            'is_image_edit' => true,
-            'source_image_url' => $source_image_url,
-        ]);
     }
 
     /**
