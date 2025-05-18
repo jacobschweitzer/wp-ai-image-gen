@@ -28,8 +28,7 @@ Includes a WordPress Gutenberg block with a prompt box that generates an image a
 
 
 ## Models Supported
-- [DALL-E 3 by OpenAI](https://openai.com/index/dall-e-3/)
 - [Flux Schnell by Black Forest Labs](https://replicate.com/black-forest-labs/flux-schnell)
 - [Recraft V3 by Recraft AI](https://replicate.com/recraft-ai/recraft-v3)
-- [Flux 1.1 Pro by Black Forest Labs](https://replicate.com/black-forest-labs/flux-1.1-pro)
 - [Imagen 3 by Google](https://replicate.com/google/imagen-3)
+- [GPT Image 1 by OpenAI]([https://platform.openai.com/docs/models/gpt-image-1](https://openai.com/index/image-generation-api/)
