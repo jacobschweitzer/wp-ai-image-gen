@@ -128,7 +128,7 @@ class WP_AI_Image_Gen_Admin {
 		if ($openai_model === 'gpt-image-1') {
 			add_settings_section(
 				'wp_ai_image_gen_quality_section',
-				'Image Quality Settings',
+				'OpenAI Image Quality Settings',
 				[$this, 'render_quality_section'],
 				'wp-ai-image-gen-settings'
 			);
