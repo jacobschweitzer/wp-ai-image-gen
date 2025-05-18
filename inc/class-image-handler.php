@@ -39,14 +39,23 @@ class WP_AI_Image_Handler {
      * @return array|WP_Error Array containing the uploaded image URL and ID, or WP_Error on failure.
      */
     public static function upload_to_media_library($image_data, $prompt) {
+        // Download the image if a URL is provided
         if (filter_var($image_data, FILTER_VALIDATE_URL)) {
+            wp_ai_image_gen_debug_log("Downloading image from URL for media library: " . $image_data);
             $image_data = self::download_image($image_data);
             if (is_wp_error($image_data)) {
                 return $image_data;
             }
         }
 
-        $filename = 'ai-generated-' . uniqid() . '.webp';
+        // Create a sanitized prompt-based filename (max 50 chars)
+        $prompt_slug = sanitize_title($prompt);
+        $prompt_slug = substr($prompt_slug, 0, 50); // Limit length
+        
+        // Generate a filename with prompt and unique ID
+        $filename = 'ai-' . $prompt_slug . '-' . uniqid() . '.webp';
+        
+        wp_ai_image_gen_debug_log("Uploading image to media library with filename: " . $filename);
         $upload = wp_upload_bits($filename, null, $image_data);
 
         if ($upload['error']) {
@@ -60,12 +69,17 @@ class WP_AI_Image_Handler {
         }
 
         $filetype = wp_check_filetype($filename, null);
+        
+        // Create a reasonable title from the prompt
+        $title = wp_trim_words($prompt, 10, '...');
+        $title = "AI Image: " . ucfirst($title);
+        
         $attachment = [
             'post_mime_type' => $filetype['type'],
-            'post_title'     => sanitize_file_name($filename),
-            'post_content'   => '',
+            'post_title'     => $title,
+            'post_content'   => 'Generated with prompt: ' . $prompt,
             'post_status'    => 'inherit',
-            'post_excerpt'   => '',
+            'post_excerpt'   => wp_trim_words($prompt, 5, '...'),
         ];
 
         $attach_id = wp_insert_attachment($attachment, $upload['file']);
@@ -83,7 +97,8 @@ class WP_AI_Image_Handler {
 
         return [
             'url' => wp_get_attachment_url($attach_id),
-            'id' => $attach_id
+            'id' => $attach_id,
+            'status' => 'completed'
         ];
     }
 

@@ -78,13 +78,19 @@ registerFormatType('wp-ai-image-gen/custom-format', {
                         // Remove the placeholder block on error.
                         replaceBlocks(placeholderBlock.clientId, []);
                     } else {
-                        // Create a new image block with the image details.
-                        const imageBlock = wp.blocks.createBlock('core/image', {
+                        // Create a new image block with the image details
+                        let blockAttributes = {
                             url: result.url,
                             alt: result.alt,
-                            caption: '',
-                            id: result.id || `ai-generated-${Date.now()}`, // Ensure the image block has an ID.
-                        });
+                            caption: ''
+                        };
+                        
+                        // Only add ID attribute if it's a valid WordPress media ID
+                        if (result.id && typeof result.id === 'number' && result.id > 0) {
+                            blockAttributes.id = result.id;
+                        }
+                        
+                        const imageBlock = wp.blocks.createBlock('core/image', blockAttributes);
                         // Replace the placeholder with the new image block.
                         replaceBlocks(placeholderBlock.clientId, [imageBlock]);
                     }

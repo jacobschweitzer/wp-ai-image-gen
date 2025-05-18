@@ -6,6 +6,17 @@ import { BlockControls } from '@wordpress/block-editor'; // Import BlockControls
 import AIImageToolbar from '../components/AIImageToolbar'; // Import the AIImageToolbar component.
 import { fetchProviders, generateImage } from '../api'; // Import API functions for provider fetching and image generation.
 
+// API endpoint for fetching providers that support image-to-image generation
+const fetchImageToImageProviders = async () => {
+    try {
+        const response = await wp.apiFetch({ path: '/wp-ai-image-gen/v1/image-to-image-providers' });
+        return response;
+    } catch (error) {
+        console.error('Error fetching image-to-image providers:', error);
+        return [];
+    }
+};
+
 /**
  * Enhances the core/image block with an AI image regeneration button.
  *
@@ -25,7 +36,10 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
         const [lastUsedProvider, setLastUsedProvider] = useState(''); // Stores the last used provider.
         const [error, setError] = useState(null); // Holds error messages if any.
 
-        // Initialize the last used provider on component mount.
+        // State for tracking providers that support image-to-image generation
+        const [imageToImageProviders, setImageToImageProviders] = useState([]);
+
+        // Initialize the last used provider and fetch image-to-image providers on component mount.
         useEffect(() => {
             const initializeProvider = async () => { // Async function to initialize provider.
                 try {
@@ -55,25 +69,31 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
                 }
             };
 
+            // Fetch providers that support image-to-image generation
+            const fetchi2iProviders = async () => {
+                try {
+                    const providers = await fetchImageToImageProviders();
+                    setImageToImageProviders(providers);
+                } catch (err) {
+                    console.error('Failed to fetch image-to-image providers:', err);
+                }
+            };
+
             initializeProvider(); // Run provider initialization.
+            fetchi2iProviders(); // Fetch image-to-image providers.
         }, []);
 
         /**
          * Handles the AI image regeneration process for the current image block.
          *
+         * @param {string} prompt - The prompt for image modification.
          * @returns {Promise<void>} A promise that resolves when regeneration is complete.
          */
-        const handleRegenerateImage = async () => { // This function regenerates the image.
+        const handleRegenerateImage = async (prompt) => { // This function regenerates the image.
             setError(null); // Clear any previous errors.
 
-            // Validate that there is alt text available to use as a prompt.
-            if (!props.attributes.alt || props.attributes.alt.trim() === '') {
-                wp.data.dispatch('core/notices').createErrorNotice(
-                    'Please provide alt text to use as the image generation prompt.',
-                    { type: 'snackbar' }
-                );
-                return;
-            }
+            // Use alt text as fallback if no prompt is provided
+            const finalPrompt = prompt || props.attributes.alt || "no alt text or prompt, please just enhance";
 
             // Ensure there is a valid provider in use.
             if (!lastUsedProvider) {
@@ -99,22 +119,47 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
             setIsRegenerating(true); // Indicate that regeneration is starting.
 
             try {
+                // Check if the current provider supports image-to-image generation
+                const supportsImageToImage = imageToImageProviders.includes(lastUsedProvider);
+                
+                // Get the source image URL if available
+                const sourceImageUrl = props.attributes.url;
+                
+                // Set up options for image generation
+                const options = {};
+                if (supportsImageToImage && sourceImageUrl) {
+                    options.sourceImageUrl = sourceImageUrl;
+                    console.log(`Using image-to-image generation with provider ${lastUsedProvider} and source image ${sourceImageUrl}`);
+                } else if (supportsImageToImage) {
+                    console.log(`Provider ${lastUsedProvider} supports image-to-image but no source image is available`);
+                }
+                
                 // Wrap the generateImage call in a promise.
                 const result = await new Promise((resolve, reject) => {
-                    generateImage(props.attributes.alt.trim(), lastUsedProvider, (result) => {
+                    generateImage(finalPrompt, lastUsedProvider, (result) => {
                         if (result.error) {
                             reject(new Error(result.error));
                         } else {
                             resolve(result);
                         }
-                    });
+                    }, options);
                 });
 
                 // Update the block attributes with the new image data.
-                props.setAttributes({
-                    url: result.url,
-                    id: result.id || `ai-generated-${Date.now()}`, // Use a fallback ID if necessary.
-                });
+                // Check if we have a valid WordPress attachment ID
+                if (result.id && typeof result.id === 'number' && result.id > 0) {
+                    // If we have a valid WP media attachment ID, use it
+                    props.setAttributes({
+                        url: result.url,
+                        id: result.id,
+                    });
+                } else {
+                    // If no ID or invalid ID, set only URL and remove ID attribute
+                    props.setAttributes({
+                        url: result.url,
+                        id: undefined, // Removes the id attribute completely
+                    });
+                }
 
                 // Display a success notice on regeneration.
                 wp.data.dispatch('core/notices').createSuccessNotice(
@@ -123,8 +168,22 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
                 );
             } catch (err) {
                 console.error('Image regeneration failed:', err); // Log the error.
+                
+                // Provide more user-friendly error messages with guidance
+                let errorMessage = err.message || 'Unknown error';
+                let actionGuidance = '';
+                
+                // Handle specific error cases
+                if (errorMessage.includes('organization verification')) {
+                    actionGuidance = ' Please verify your organization in the OpenAI dashboard.';
+                } else if (errorMessage.includes('parameter')) {
+                    errorMessage = 'API configuration error. Please contact the plugin developer.';
+                } else if (errorMessage.includes('content policy')) {
+                    actionGuidance = ' Try a different prompt.';
+                }
+                
                 wp.data.dispatch('core/notices').createErrorNotice(
-                    'Failed to regenerate image: ' + (err.message || 'Unknown error'),
+                    'Failed to regenerate image: ' + errorMessage + actionGuidance,
                     { type: 'snackbar' }
                 );
             } finally {
@@ -140,6 +199,7 @@ addFilter('editor.BlockEdit', 'wp-ai-image-gen/add-regenerate-button', (BlockEdi
                         isRegenerating={isRegenerating}
                         onRegenerateImage={handleRegenerateImage}
                         isImageBlock={true} // Always true for core/image blocks.
+                        supportsImageToImage={imageToImageProviders.includes(lastUsedProvider)}
                     />
                 </BlockControls>
             </>

@@ -49,10 +49,7 @@ class WP_AI_Image_Provider_Manager {
     private function load_providers() {
         // Get the full path to the providers directory
         $providers_dir = plugin_dir_path(dirname(__FILE__)) . 'inc/providers/';
-        
-        // Log the providers directory path for debugging
-        wp_ai_image_gen_debug_log("Loading providers from: " . $providers_dir);
-        
+
         // Get all PHP files in the providers directory
         $provider_files = glob($providers_dir . 'class-image-provider-*.php');
         
@@ -68,14 +65,11 @@ class WP_AI_Image_Provider_Manager {
             // Convert filename like 'class-image-provider-replicate.php' to 'WP_AI_Image_Provider_Replicate'
             $class_name = str_replace(['class-', '-'], ['WP_AI_', '_'], basename($provider_file, '.php'));
             
-            wp_ai_image_gen_debug_log("Attempting to load provider: " . $class_name);
-            
             if (class_exists($class_name)) {
                 // Create a new instance with default empty values
                 $provider_instance = new $class_name('', '');
                 if ($provider_instance instanceof WP_AI_Image_Provider_Interface) {
                     self::$providers[$provider_instance->get_id()] = $provider_instance;
-                    wp_ai_image_gen_debug_log("Successfully loaded provider: " . $provider_instance->get_id());
                 }
             }
         }
@@ -108,6 +102,51 @@ class WP_AI_Image_Provider_Manager {
      */
     public function get_provider($provider_id) {
         return isset(self::$providers[$provider_id]) ? self::$providers[$provider_id] : null;
+    }
+    
+    /**
+     * Checks if a provider supports image-to-image generation with its current model.
+     * @param string $provider_id The ID of the provider to check.
+     * @return bool True if the provider supports image-to-image, false otherwise.
+     */
+    public function provider_supports_image_to_image($provider_id) {
+        $provider = $this->get_provider($provider_id);
+        if (!$provider) {
+            return false;
+        }
+        
+        // Get provider's current model
+        $provider_models = get_option('wp_ai_image_gen_provider_models', []);
+        $api_keys = get_option('wp_ai_image_gen_provider_api_keys', []);
+        
+        // Check if we have a valid API key and model set
+        if (!isset($api_keys[$provider_id]) || empty($api_keys[$provider_id])) {
+            return false;
+        }
+        
+        $model = isset($provider_models[$provider_id]) ? $provider_models[$provider_id] : '';
+        
+        // Create a new instance with the current API key and model
+        $provider_class = get_class($provider);
+        $provider_instance = new $provider_class($api_keys[$provider_id], $model);
+        
+        return $provider_instance->supports_image_to_image();
+    }
+    
+    /**
+     * Gets a list of all providers that support image-to-image generation.
+     * @return array Array of provider IDs that support image-to-image.
+     */
+    public function get_image_to_image_providers() {
+        $image_to_image_providers = [];
+        
+        foreach (self::$providers as $provider_id => $provider) {
+            if ($this->provider_supports_image_to_image($provider_id)) {
+                $image_to_image_providers[] = $provider_id;
+            }
+        }
+        
+        return $image_to_image_providers;
     }
 }
 

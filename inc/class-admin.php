@@ -106,14 +106,33 @@ class WP_AI_Image_Gen_Admin {
 			'wp_ai_image_gen_provider_models',
 			['sanitize_callback' => [$this, 'sanitize_provider_models']]
 		);
+		
+		// Register quality settings
+		register_setting(
+			'wp_ai_image_gen_settings',
+			'wp_ai_image_gen_quality_settings',
+			['sanitize_callback' => [$this, 'sanitize_quality_settings']]
+		);
 
-		// Add settings section
+		// Add settings section for providers
 		add_settings_section(
 			'wp_ai_image_gen_settings_section',
 			'AI Image Providers',
 			[$this, 'render_providers_section'],
 			'wp-ai-image-gen-settings'
 		);
+		
+		// Add settings section for quality if gpt-image-1 is selected.
+		$saved_models = get_option('wp_ai_image_gen_provider_models', []);
+		$openai_model = isset($saved_models['openai']) ? $saved_models['openai'] : '';
+		if ($openai_model === 'gpt-image-1') {
+			add_settings_section(
+				'wp_ai_image_gen_quality_section',
+				'OpenAI Image Quality Settings',
+				[$this, 'render_quality_section'],
+				'wp-ai-image-gen-settings'
+			);
+		}
 
 		// Add settings fields for each provider
 		foreach ($this->providers as $provider_id => $provider_name) {
@@ -224,8 +243,64 @@ class WP_AI_Image_Gen_Admin {
 		} else {
 			wp_ai_image_gen_debug_log("Available providers: " . wp_json_encode($this->providers));
 			echo '<p>Configure your API keys and models for each AI image provider.</p>';
-			echo '<p>Available providers: ' . esc_html(implode(', ', $this->providers)) . '</p>';
 		}
+	}
+	
+	/**
+	 * Renders the quality settings section.
+	 * Only visible when GPT Image-1 is selected.
+	 */
+	public function render_quality_section() {
+		// Check if OpenAI with GPT Image-1 model is selected
+		$saved_models = get_option('wp_ai_image_gen_provider_models', []);
+		$openai_model = isset($saved_models['openai']) ? $saved_models['openai'] : '';
+		
+		if ($openai_model !== 'gpt-image-1') {
+			return;
+		}
+
+		// Add quality field.
+		add_settings_field(
+			'wp_ai_image_gen_quality_setting',
+			'Image Quality',
+			[$this, 'render_quality_field'],
+			'wp-ai-image-gen-settings',
+			'wp_ai_image_gen_quality_section'
+		);
+	}
+
+	/**
+	 * Renders the quality field.
+	 */
+	public function render_quality_field() {
+		$quality_settings = get_option('wp_ai_image_gen_quality_settings', []);
+		$quality = isset($quality_settings['quality']) ? $quality_settings['quality'] : 'medium';
+		?>
+		<select name="wp_ai_image_gen_quality_settings[quality]">
+			<option value="low" <?php selected($quality, 'low'); ?>>Low</option>
+			<option value="medium" <?php selected($quality, 'medium'); ?>>Medium</option>
+			<option value="high" <?php selected($quality, 'high'); ?>>High</option>
+		</select>
+		<?php
+	}
+	
+	/**
+	 * Sanitizes the quality settings.
+	 * 
+	 * @param array $input The input array of quality settings.
+	 * @return array The sanitized array of quality settings.
+	 */
+	public function sanitize_quality_settings($input) {
+		$sanitized_input = [];
+		
+		// Sanitize quality
+		if (isset($input['quality']) && in_array($input['quality'], ['low', 'medium', 'high'])) {
+			$sanitized_input['quality'] = $input['quality'];
+		} else {
+			$sanitized_input['quality'] = 'medium';
+		}
+		
+		return $sanitized_input;
 	}
 
 	/**
@@ -270,7 +345,7 @@ class WP_AI_Image_Gen_Admin {
 					<?php echo esc_html($model_name); ?>
 				</option>
 			<?php endforeach; ?>
-		</select>
+		</select>		
 		<?php
 	}
 

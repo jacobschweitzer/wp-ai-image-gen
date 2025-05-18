@@ -51,6 +51,16 @@ abstract class WP_AI_Image_Provider implements WP_AI_Image_Provider_Interface {
         }
         return false;
     }
+    
+    /**
+     * Checks if this provider supports image-to-image generation with the current model.
+     * By default, providers don't support image-to-image. Override in child classes if supported.
+     *
+     * @return bool True if image-to-image is supported, false otherwise.
+     */
+    public function supports_image_to_image() {
+        return false;
+    }
 
     /**
      * Prepares the headers for API requests.
@@ -115,13 +125,33 @@ abstract class WP_AI_Image_Provider implements WP_AI_Image_Provider_Interface {
             }
 
             // Process the API response
-            $image_data = $this->process_api_response($response);
-            if (is_wp_error($image_data)) {
-                return $image_data;
+            $result = $this->process_api_response($response);
+            if (is_wp_error($result)) {
+                return $result;
             }
 
-            // Upload the image to the media library
-            return WP_AI_Image_Handler::upload_to_media_library($image_data, $prompt);
+            // Handle different response formats
+            if (is_array($result) && isset($result['url']) && isset($result['id']) && $result['id'] > 0) {
+                // This is already a fully processed result with proper WP media ID
+                wp_ai_image_gen_debug_log("Using pre-processed result with media ID: " . $result['id']);
+                return $result;
+            } else if (is_array($result) && isset($result['url'])) {
+                // This has a URL but no valid ID, so upload to media library
+                wp_ai_image_gen_debug_log("Uploading array result URL to media library");
+                return WP_AI_Image_Handler::upload_to_media_library($result['url'], $prompt);
+            } else if (is_string($result) && filter_var($result, FILTER_VALIDATE_URL)) {
+                // This is a URL string, upload to media library
+                wp_ai_image_gen_debug_log("Uploading URL to media library: " . $result);
+                return WP_AI_Image_Handler::upload_to_media_library($result, $prompt);
+            } else if (is_string($result) && strlen($result) > 100) {
+                // This is likely raw image data, upload to media library
+                wp_ai_image_gen_debug_log("Uploading raw image data to media library");
+                return WP_AI_Image_Handler::upload_to_media_library($result, $prompt);
+            }
+            
+            // Fallback for unexpected result format
+            wp_ai_image_gen_debug_log("Invalid result format: " . wp_json_encode($result));
+            return new WP_Error('invalid_result', 'Invalid result format from provider');
         } catch (Exception $e) {
             return new WP_Error('generation_failed', $e->getMessage());
         }
