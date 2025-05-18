@@ -1,7 +1,7 @@
 // This file contains the AIImageToolbar component used in block toolbars for AI image actions.
 
 import { useState } from '@wordpress/element';
-import { Spinner, ToolbarButton, ToolbarGroup, Modal, TextareaControl, Button } from '@wordpress/components'; // Import necessary toolbar components.
+import { Spinner, ToolbarButton, ToolbarGroup, Modal, TextareaControl, Button } from '@wordpress/components';
 
 /**
  * AIImageToolbar component for adding AI image generation or regeneration buttons.
@@ -65,7 +65,7 @@ const AIImageToolbar = ({
                         {error && <p style={{ color: 'red' }}>{error}</p>}
                         
                         <TextareaControl
-                            label="Editing Instructions (optional) "
+                            label="Editing Instructions (optional)"
                             value={prompt}
                             onChange={setPrompt}
                             rows={4}
@@ -95,17 +95,16 @@ const AIImageToolbar = ({
         return (
             <ToolbarGroup>
                 <ToolbarButton
-                    icon={isGenerating ? <Spinner /> : "format-image"} // Show spinner when generating.
-                    label={isGenerating ? "Generating AI Image..." : "Generate AI Image"} // Button label based on generation status.
-                    onClick={onGenerateImage} // Invokes the generation handler.
-                    disabled={isGenerating} // Disables the button during generation.
+                    icon={isGenerating ? <Spinner /> : "format-image"}
+                    label={isGenerating ? "Generating AI Image..." : "Generate AI Image"}
+                    onClick={onGenerateImage}
+                    disabled={isGenerating}
                 />
             </ToolbarGroup>
         );
     }
 
-    // Return null if neither condition is met.
     return null;
 };
 
-export default AIImageToolbar; // Export the AIImageToolbar component. 
+export default AIImageToolbar; 
