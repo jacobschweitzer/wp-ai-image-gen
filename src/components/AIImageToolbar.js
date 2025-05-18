@@ -65,11 +65,10 @@ const AIImageToolbar = ({
                         {error && <p style={{ color: 'red' }}>{error}</p>}
                         
                         <TextareaControl
-                            label="Enter instructions for image modification (optional)"
+                            label="Editing Instructions (optional) "
                             value={prompt}
                             onChange={setPrompt}
                             rows={4}
-                            help="Enter specific instructions for how you want to modify the image. For example: 'Make it more vibrant', 'Add a sunset background', or 'Change the style to watercolor'. If left empty, the system will use the image's alt text or enhance the image automatically."
                         />
                         
                         <Button

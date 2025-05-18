@@ -217,11 +217,10 @@ const AIImageToolbar = ({
         color: 'red'
       }
     }, error), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextareaControl, {
-      label: "Enter instructions for image modification (optional)",
+      label: "Editing Instructions (optional) ",
       value: prompt,
       onChange: setPrompt,
-      rows: 4,
-      help: "Enter specific instructions for how you want to modify the image. For example: 'Make it more vibrant', 'Add a sunset background', or 'Change the style to watercolor'. If left empty, the system will use the image's alt text or enhance the image automatically."
+      rows: 4
     }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
       variant: "primary",
       onClick: handleRegenerate,
