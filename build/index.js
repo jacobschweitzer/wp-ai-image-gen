@@ -10,39 +10,14 @@
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   fetchProviders: () => (/* binding */ fetchProviders),
 /* harmony export */   generateImage: () => (/* binding */ generateImage)
 /* harmony export */ });
-// This file provides API functions for fetching available providers and generating AI images.
+// This file provides API functions for generating AI images.
 
 /**
- * Fetches available providers from the server.
- *
- * @returns {Promise<Object>} A promise that resolves to an object containing provider IDs and names.
- */
-const fetchProviders = async () => {
-  // This function fetches providers using WordPress API.
-  try {
-    // Attempt to fetch providers using wp.apiFetch.
-    const response = await wp.apiFetch({
-      path: '/wp-ai-image-gen/v1/providers'
-    });
-    return response; // Return the successful response.
-  } catch (error) {
-    // Log any errors that occur during fetch.
-    console.error('Error fetching providers:', error);
-    // Return an object with an error field to indicate failure.
-    return {
-      error: 'Unable to fetch providers. Please try again later.'
-    };
-  }
-};
-
-/**
- * Generates an AI image based on the given prompt, provider, and optional parameters.
+ * Generates an AI image based on the given prompt and optional parameters.
  *
  * @param {string} prompt - The text prompt for image generation.
- * @param {string} provider - The selected provider ID.
  * @param {function} callback - The callback function to handle the generated image data.
  * @param {Object} [options] - Optional parameters for image generation.
  * @param {string} [options.sourceImageUrl] - URL of the source image for image-to-image generation.
@@ -52,11 +27,16 @@ const fetchProviders = async () => {
  * @param {string} [options.style] - Style parameter: 'natural' or 'vivid' (for GPT Image-1 only).
  * @returns {Promise<void>} A promise that resolves when the image generation is complete.
  */
-const generateImage = async (prompt, provider, callback, options = {}) => {
+const generateImage = async (prompt, callback, options = {}) => {
   try {
+    // Get the main provider setting from editor settings
+    const mainProvider = wp.data.select('core/editor')?.getEditorSettings()?.wp_ai_image_gen_main_provider;
+    if (!mainProvider) {
+      throw new Error('No main provider configured. Please check your plugin settings.');
+    }
     const data = {
       prompt,
-      provider
+      provider: mainProvider // Use the main provider setting
     };
 
     // Add source image URL if provided
@@ -164,7 +144,7 @@ __webpack_require__.r(__webpack_exports__);
 // This file contains the AIImageToolbar component used in block toolbars for AI image actions.
 
 
- // Import necessary toolbar components.
+
 
 /**
  * AIImageToolbar component for adding AI image generation or regeneration buttons.
@@ -217,7 +197,7 @@ const AIImageToolbar = ({
         color: 'red'
       }
     }, error), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextareaControl, {
-      label: "Editing Instructions (optional) ",
+      label: "Editing Instructions (optional)",
       value: prompt,
       onChange: setPrompt,
       rows: 4
@@ -230,20 +210,15 @@ const AIImageToolbar = ({
   // Render a generate button if text is selected.
   else if (isTextSelected) {
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.ToolbarGroup, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.ToolbarButton, {
-      icon: isGenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, null) : "format-image" // Show spinner when generating.
-      ,
-      label: isGenerating ? "Generating AI Image..." : "Generate AI Image" // Button label based on generation status.
-      ,
-      onClick: onGenerateImage // Invokes the generation handler.
-      ,
-      disabled: isGenerating // Disables the button during generation.
+      icon: isGenerating ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, null) : "format-image",
+      label: isGenerating ? "Generating AI Image..." : "Generate AI Image",
+      onClick: onGenerateImage,
+      disabled: isGenerating
     }));
   }
-
-  // Return null if neither condition is met.
   return null;
 };
-/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (AIImageToolbar); // Export the AIImageToolbar component.
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (AIImageToolbar);
 
 /***/ }),
 
@@ -284,48 +259,11 @@ const AITab = ({
   shouldDisplay
 }) => {
   // This is the AITab functional component.
-  // State for modal visibility, prompt text, loading indicator, available providers, selected provider, and error message.
+  // State for modal visibility, prompt text, loading indicator, and error message.
   const [isModalOpen, setIsModalOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(false); // Indicates if the modal is open.
   const [prompt, setPrompt] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(''); // Stores the image prompt.
   const [isLoading, setIsLoading] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(false); // Indicates if image generation is in progress.
-  const [providers, setProviders] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)([]); // Holds available provider IDs.
-  const [selectedProvider, setSelectedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(''); // Tracks the selected provider.
   const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(null); // Holds any error messages.
-
-  // Fetch providers from the server when the component mounts.
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useEffect)(() => {
-    const initializeProviders = async () => {
-      // This async function fetches providers.
-      try {
-        const result = await (0,_api__WEBPACK_IMPORTED_MODULE_3__.fetchProviders)(); // Call the API to get providers.
-        if (result.error) {
-          setError(result.error); // Set error state if fetching failed.
-          return;
-        }
-        setProviders(result); // Set the list of providers.
-
-        // Retrieve the last used provider from localStorage.
-        const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
-        // Use the stored provider if valid, otherwise choose the first available provider.
-        if (storedProvider && result.includes(storedProvider)) {
-          setSelectedProvider(storedProvider);
-        } else if (result.length > 0) {
-          setSelectedProvider(result[0]);
-          localStorage.setItem('wpAiImageGenLastProvider', result[0]); // Save the default provider.
-        }
-      } catch (err) {
-        setError('Failed to fetch providers: ' + err.message); // Set error if provider fetching fails.
-      }
-    };
-    initializeProviders(); // Invoke our initializeProviders function.
-  }, []);
-
-  // Update localStorage whenever the selected provider changes.
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useEffect)(() => {
-    if (selectedProvider) {
-      localStorage.setItem('wpAiImageGenLastProvider', selectedProvider); // Save the selected provider.
-    }
-  }, [selectedProvider]);
 
   /**
    * Handles the image generation process when the Generate button is clicked.
@@ -339,16 +277,11 @@ const AITab = ({
       setError('Please enter a prompt for image generation.');
       return;
     }
-    // Ensure a provider is selected.
-    if (!selectedProvider) {
-      setError('Please select a provider for image generation.');
-      return;
-    }
     setIsLoading(true); // Start loading state.
     setError(null); // Clear any previous errors.
 
-    // Call generateImage API function with the prompt and selected provider.
-    (0,_api__WEBPACK_IMPORTED_MODULE_3__.generateImage)(prompt.trim(), selectedProvider, media => {
+    // Call generateImage API function with the prompt
+    (0,_api__WEBPACK_IMPORTED_MODULE_3__.generateImage)(prompt.trim(), media => {
       if (media.error) {
         setError(media.error); // Set error if generation fails.
         setIsLoading(false); // End loading state.
@@ -359,12 +292,6 @@ const AITab = ({
       }
     });
   };
-
-  // Map provider IDs to objects for the SelectControl dropdown.
-  const providerOptions = providers.map(id => ({
-    value: id,
-    label: id.charAt(0).toUpperCase() + id.slice(1) // Capitalize the first letter.
-  }));
 
   // Do not render the component if shouldDisplay is false.
   if (!shouldDisplay) {
@@ -384,12 +311,7 @@ const AITab = ({
     style: {
       color: 'red'
     }
-  }, error), providerOptions.length > 1 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.SelectControl, {
-    label: "Select Provider",
-    value: selectedProvider,
-    options: providerOptions,
-    onChange: setSelectedProvider // Updates selected provider.
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextareaControl, {
+  }, error), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextareaControl, {
     label: "Enter your image prompt",
     value: prompt,
     onChange: setPrompt // Updates the prompt state.
@@ -400,7 +322,7 @@ const AITab = ({
     ,
     onClick: handleGenerate // Initiates image generation.
     ,
-    disabled: isLoading || !selectedProvider || !prompt.trim() // Disables button if conditions are not met.
+    disabled: isLoading || !prompt.trim() // Disables button if conditions are not met.
   }, isLoading ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, null), " ", "Generating...") : 'Generate Image')));
 };
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (AITab); // Export the AITab component.
@@ -456,20 +378,7 @@ __webpack_require__.r(__webpack_exports__);
  // Import necessary React hooks.
  // Import BlockControls for toolbar.
  // Import the AIImageToolbar component.
- // Import API functions for provider fetching and image generation.
-
-// API endpoint for fetching providers that support image-to-image generation
-const fetchImageToImageProviders = async () => {
-  try {
-    const response = await wp.apiFetch({
-      path: '/wp-ai-image-gen/v1/image-to-image-providers'
-    });
-    return response;
-  } catch (error) {
-    console.error('Error fetching image-to-image providers:', error);
-    return [];
-  }
-};
+ // Import API functions for image generation.
 
 /**
  * Enhances the core/image block with an AI image regeneration button.
@@ -487,55 +396,31 @@ const fetchImageToImageProviders = async () => {
       });
     }
 
-    // State to manage regeneration progress, provider selection, and errors.
+    // State to manage regeneration progress and errors.
     const [isRegenerating, setIsRegenerating] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false); // Indicates if regeneration is in progress.
-    const [lastUsedProvider, setLastUsedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(''); // Stores the last used provider.
     const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(null); // Holds error messages if any.
+    const [supportsImageToImage, setSupportsImageToImage] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false); // Whether provider supports image-to-image
 
-    // State for tracking providers that support image-to-image generation
-    const [imageToImageProviders, setImageToImageProviders] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)([]);
-
-    // Initialize the last used provider and fetch image-to-image providers on component mount.
+    // Initialize the provider from settings on component mount.
     (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useEffect)(() => {
       const initializeProvider = async () => {
-        // Async function to initialize provider.
         try {
-          const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
-          if (storedProvider) {
-            // Verify that the stored provider is still available.
-            const availableProviders = await (0,_api__WEBPACK_IMPORTED_MODULE_5__.fetchProviders)();
-            if (!availableProviders.error && availableProviders.includes(storedProvider)) {
-              setLastUsedProvider(storedProvider);
-              return;
-            }
+          // Get the main provider from localized data
+          const mainProvider = window.wpAiImageGen?.mainProvider;
+          if (!mainProvider) {
+            console.error('No main provider configured in localized data');
+            return;
           }
-          // If no valid provider was stored, fetch and use the first available provider.
-          const result = await (0,_api__WEBPACK_IMPORTED_MODULE_5__.fetchProviders)();
-          if (!result.error && result.length > 0) {
-            const defaultProvider = result[0];
-            setLastUsedProvider(defaultProvider);
-            localStorage.setItem('wpAiImageGenLastProvider', defaultProvider);
-          }
+
+          // Only OpenAI's gpt-image-1 supports image-to-image
+          setSupportsImageToImage(mainProvider === 'openai');
         } catch (err) {
-          // Log an error and display a notice if initialization fails.
           console.error('Failed to initialize provider:', err);
-          wp.data.dispatch('core/notices').createErrorNotice('Failed to initialize AI provider. Please try again.', {
-            type: 'snackbar'
-          });
         }
       };
 
-      // Fetch providers that support image-to-image generation
-      const fetchi2iProviders = async () => {
-        try {
-          const providers = await fetchImageToImageProviders();
-          setImageToImageProviders(providers);
-        } catch (err) {
-          console.error('Failed to fetch image-to-image providers:', err);
-        }
-      };
-      initializeProvider(); // Run provider initialization.
-      fetchi2iProviders(); // Fetch image-to-image providers.
+      // Start initialization immediately
+      initializeProvider();
     }, []);
 
     /**
@@ -545,36 +430,23 @@ const fetchImageToImageProviders = async () => {
      * @returns {Promise<void>} A promise that resolves when regeneration is complete.
      */
     const handleRegenerateImage = async prompt => {
-      // This function regenerates the image.
       setError(null); // Clear any previous errors.
 
       // Use alt text as fallback if no prompt is provided
       const finalPrompt = prompt || props.attributes.alt || "no alt text or prompt, please just enhance";
 
-      // Ensure there is a valid provider in use.
-      if (!lastUsedProvider) {
-        try {
-          const providers = await (0,_api__WEBPACK_IMPORTED_MODULE_5__.fetchProviders)(); // Fetch providers if necessary.
-          if (providers.error || providers.length === 0) {
-            wp.data.dispatch('core/notices').createErrorNotice('No AI provider available. Please check your settings.', {
-              type: 'snackbar'
-            });
-            return;
-          }
-          setLastUsedProvider(providers[0]); // Use the first provider.
-        } catch (err) {
-          wp.data.dispatch('core/notices').createErrorNotice('Failed to fetch AI providers. Please try again.', {
-            type: 'snackbar'
-          });
-          return;
-        }
+      // Get the main provider from localized data
+      const mainProvider = window.wpAiImageGen?.mainProvider;
+      if (!mainProvider) {
+        console.error('No main provider configured');
+        wp.data.dispatch('core/notices').createErrorNotice('No AI provider configured. Please check your plugin settings.', {
+          type: 'snackbar'
+        });
+        return;
       }
       setIsRegenerating(true); // Indicate that regeneration is starting.
 
       try {
-        // Check if the current provider supports image-to-image generation
-        const supportsImageToImage = imageToImageProviders.includes(lastUsedProvider);
-
         // Get the source image URL if available
         const sourceImageUrl = props.attributes.url;
 
@@ -582,14 +454,16 @@ const fetchImageToImageProviders = async () => {
         const options = {};
         if (supportsImageToImage && sourceImageUrl) {
           options.sourceImageUrl = sourceImageUrl;
-          console.log(`Using image-to-image generation with provider ${lastUsedProvider} and source image ${sourceImageUrl}`);
-        } else if (supportsImageToImage) {
-          console.log(`Provider ${lastUsedProvider} supports image-to-image but no source image is available`);
+        } else if (supportsImageToImage && !sourceImageUrl) {
+          console.warn('Image-to-image requested but no source image URL available');
+          wp.data.dispatch('core/notices').createWarningNotice('Image-to-image generation requires a source image. Please ensure the image is properly loaded.', {
+            type: 'snackbar'
+          });
         }
 
         // Wrap the generateImage call in a promise.
         const result = await new Promise((resolve, reject) => {
-          (0,_api__WEBPACK_IMPORTED_MODULE_5__.generateImage)(finalPrompt, lastUsedProvider, result => {
+          (0,_api__WEBPACK_IMPORTED_MODULE_5__.generateImage)(finalPrompt, result => {
             if (result.error) {
               reject(new Error(result.error));
             } else {
@@ -599,33 +473,24 @@ const fetchImageToImageProviders = async () => {
         });
 
         // Update the block attributes with the new image data.
-        // Check if we have a valid WordPress attachment ID
         if (result.id && typeof result.id === 'number' && result.id > 0) {
-          // If we have a valid WP media attachment ID, use it
           props.setAttributes({
             url: result.url,
             id: result.id
           });
         } else {
-          // If no ID or invalid ID, set only URL and remove ID attribute
           props.setAttributes({
             url: result.url,
-            id: undefined // Removes the id attribute completely
+            id: undefined
           });
         }
-
-        // Display a success notice on regeneration.
         wp.data.dispatch('core/notices').createSuccessNotice('Image regenerated successfully!', {
           type: 'snackbar'
         });
       } catch (err) {
-        console.error('Image regeneration failed:', err); // Log the error.
-
-        // Provide more user-friendly error messages with guidance
+        console.error('Image regeneration failed:', err);
         let errorMessage = err.message || 'Unknown error';
         let actionGuidance = '';
-
-        // Handle specific error cases
         if (errorMessage.includes('organization verification')) {
           actionGuidance = ' Please verify your organization in the OpenAI dashboard.';
         } else if (errorMessage.includes('parameter')) {
@@ -637,17 +502,16 @@ const fetchImageToImageProviders = async () => {
           type: 'snackbar'
         });
       } finally {
-        setIsRegenerating(false); // Reset the regeneration state.
+        setIsRegenerating(false);
       }
     };
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(BlockEdit, {
       ...props
-    }), " ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_3__.BlockControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_components_AIImageToolbar__WEBPACK_IMPORTED_MODULE_4__["default"], {
+    }), supportsImageToImage && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_block_editor__WEBPACK_IMPORTED_MODULE_3__.BlockControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_components_AIImageToolbar__WEBPACK_IMPORTED_MODULE_4__["default"], {
       isRegenerating: isRegenerating,
       onRegenerateImage: handleRegenerateImage,
-      isImageBlock: true // Always true for core/image blocks.
-      ,
-      supportsImageToImage: imageToImageProviders.includes(lastUsedProvider)
+      isImageBlock: true,
+      supportsImageToImage: supportsImageToImage
     })));
   };
 });
@@ -756,8 +620,7 @@ __webpack_require__.r(__webpack_exports__);
     onChange
   }) => {
     // This edit function adds AI image functionality to the block.
-    // Create state for the last used provider and generation state.
-    const [lastUsedProvider, setLastUsedProvider] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(''); // Stores the last used provider.
+    // Create state for generation state.
     const [isGenerating, setIsGenerating] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(false); // Indicates if an image is being generated.
 
     // Retrieve the currently selected block.
@@ -766,14 +629,6 @@ __webpack_require__.r(__webpack_exports__);
     const {
       replaceBlocks
     } = (0,_wordpress_data__WEBPACK_IMPORTED_MODULE_3__.useDispatch)('core/block-editor');
-
-    // Fetch the last used provider from localStorage when the component mounts.
-    (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useEffect)(() => {
-      const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
-      if (storedProvider) {
-        setLastUsedProvider(storedProvider);
-      }
-    }, []);
 
     /**
      * Handles the AI image generation process based on the selected text.
@@ -793,6 +648,15 @@ __webpack_require__.r(__webpack_exports__);
           return;
         }
 
+        // Get the main provider from editor settings
+        const mainProvider = wp.data.select('core/editor')?.getEditorSettings()?.wp_ai_image_gen_main_provider;
+        if (!mainProvider) {
+          wp.data.dispatch('core/notices').createErrorNotice('No AI provider configured. Please set one in the plugin settings.', {
+            type: 'snackbar'
+          });
+          return;
+        }
+
         // Create a placeholder block to show that image generation is in progress.
         const placeholderBlock = wp.blocks.createBlock('core/heading', {
           content: 'Generating AI image...',
@@ -806,7 +670,7 @@ __webpack_require__.r(__webpack_exports__);
         setIsGenerating(true); // Set generating state.
 
         // Call the API function to generate the image.
-        (0,_api__WEBPACK_IMPORTED_MODULE_6__.generateImage)(selectedText, lastUsedProvider, result => {
+        (0,_api__WEBPACK_IMPORTED_MODULE_6__.generateImage)(selectedText, result => {
           setIsGenerating(false); // Reset generating state.
 
           if (result.error) {
@@ -834,7 +698,7 @@ __webpack_require__.r(__webpack_exports__);
           }
         });
       }
-    }, [selectedBlock, value.text, value.start, value.end, replaceBlocks, lastUsedProvider]);
+    }, [selectedBlock, value.text, value.start, value.end, replaceBlocks]);
 
     // Determine if any text is selected.
     const selectedText = value.text.slice(value.start, value.end).trim();

@@ -55,6 +55,32 @@ class WP_AI_Image_Gen_Admin {
 		add_action('admin_init', [$this, 'register_settings']);
 		add_action('admin_enqueue_scripts', [$this, 'enqueue_scripts']);
 		add_action('admin_footer', [$this, 'add_admin_footer_js']);
+
+		// Add the main provider setting to the editor settings
+		add_filter('block_editor_settings_all', function($settings) {
+			$main_provider = get_option('wp_ai_image_gen_main_provider', '');
+			
+			// Ensure settings is an array
+			if (!is_array($settings)) {
+				$settings = [];
+			}
+			
+			// Add the main provider setting in all possible locations to ensure it's available
+			$settings['wp_ai_image_gen_main_provider'] = $main_provider;
+			
+			if (!isset($settings['wp_ai_image_gen'])) {
+				$settings['wp_ai_image_gen'] = [];
+			}
+			$settings['wp_ai_image_gen']['main_provider'] = $main_provider;
+			
+			// Add to editor settings directly
+			if (!isset($settings['wp_ai_image_gen_settings'])) {
+				$settings['wp_ai_image_gen_settings'] = [];
+			}
+			$settings['wp_ai_image_gen_settings']['main_provider'] = $main_provider;
+			
+			return $settings;
+		}, 20); // Add a higher priority to ensure our settings are added after others
 	}
 
 	/**
@@ -101,17 +127,18 @@ class WP_AI_Image_Gen_Admin {
 			['sanitize_callback' => [$this, 'sanitize_provider_api_keys']]
 		);
 
-		register_setting(
-			'wp_ai_image_gen_settings',
-			'wp_ai_image_gen_provider_models',
-			['sanitize_callback' => [$this, 'sanitize_provider_models']]
-		);
-		
 		// Register quality settings
 		register_setting(
 			'wp_ai_image_gen_settings',
 			'wp_ai_image_gen_quality_settings',
 			['sanitize_callback' => [$this, 'sanitize_quality_settings']]
+		);
+
+		// Register main provider setting
+		register_setting(
+			'wp_ai_image_gen_settings',
+			'wp_ai_image_gen_main_provider',
+			['sanitize_callback' => [$this, 'sanitize_main_provider']]
 		);
 
 		// Add settings section for providers
@@ -121,23 +148,40 @@ class WP_AI_Image_Gen_Admin {
 			[$this, 'render_providers_section'],
 			'wp-ai-image-gen-settings'
 		);
-		
-		// Add settings section for quality if gpt-image-1 is selected.
-		$saved_models = get_option('wp_ai_image_gen_provider_models', []);
-		$openai_model = isset($saved_models['openai']) ? $saved_models['openai'] : '';
-		if ($openai_model === 'gpt-image-1') {
-			add_settings_section(
-				'wp_ai_image_gen_quality_section',
-				'OpenAI Image Quality Settings',
-				[$this, 'render_quality_section'],
-				'wp-ai-image-gen-settings'
-			);
-		}
+
+		// Add quality settings section
+		add_settings_section(
+			'wp_ai_image_gen_quality_section',
+			'Image Quality Settings',
+			[$this, 'render_quality_section'],
+			'wp-ai-image-gen-settings'
+		);
+
+		// Add main provider selection field
+		add_settings_field(
+			'wp_ai_image_gen_main_provider',
+			'Main Provider',
+			[$this, 'render_main_provider_field'],
+			'wp-ai-image-gen-settings',
+			'wp_ai_image_gen_settings_section',
+			[
+				'providers' => $this->active_providers,
+			]
+		);
 
 		// Add settings fields for each provider
 		foreach ($this->providers as $provider_id => $provider_name) {
 			$this->add_provider_fields($provider_id, $provider_name);
 		}
+
+		// Add quality field
+		add_settings_field(
+			'wp_ai_image_gen_quality_setting',
+			'Image Quality',
+			[$this, 'render_quality_field'],
+			'wp-ai-image-gen-settings',
+			'wp_ai_image_gen_quality_section'
+		);
 	}
 
 	/**
@@ -154,20 +198,6 @@ class WP_AI_Image_Gen_Admin {
 			[
 				'provider_id' => $provider_id,
 				'provider_name' => $provider_name,
-			]
-		);
-
-		// Model Selection Field
-		add_settings_field(
-			"wp_ai_image_gen_{$provider_id}_model",
-			"{$provider_name} Model",
-			[$this, 'render_model_field'],
-			'wp-ai-image-gen-settings',
-			'wp_ai_image_gen_settings_section',
-			[
-				'provider_id' => $provider_id,
-				'provider_name' => $provider_name,
-				'models' => $this->get_models_for_provider($provider_id),
 			]
 		);
 	}
@@ -209,82 +239,6 @@ class WP_AI_Image_Gen_Admin {
 	}
 
 	/**
-	 * Sanitizes the provider models before saving.
-	 * 
-	 * @param array $input The input array of provider models.
-	 * @return array The sanitized array of provider models.
-	 */
-	public function sanitize_provider_models($input) {
-		$sanitized_input = [];
-		foreach ($input as $provider_id => $model) {
-			$sanitized_input[$provider_id] = sanitize_text_field($model);
-		}
-		return $sanitized_input;
-	}
-
-	/**
-	 * Gets the list of available models for a specific provider.
-	 * 
-	 * @param string $provider_id The ID of the provider.
-	 * @return array An array of available models.
-	 */
-	private function get_models_for_provider($provider_id) {
-		$provider = wp_ai_image_gen_provider_manager()->get_provider($provider_id);
-		return $provider ? $provider->get_available_models() : [];
-	}
-
-	/**
-	 * Renders the providers section description.
-	 */
-	public function render_providers_section() {
-		if (empty($this->providers)) {
-			wp_ai_image_gen_debug_log("No providers available in the provider list");
-			echo '<p class="notice notice-warning">No AI image providers are currently available. Please check the plugin installation.</p>';
-		} else {
-			wp_ai_image_gen_debug_log("Available providers: " . wp_json_encode($this->providers));
-			echo '<p>Configure your API keys and models for each AI image provider.</p>';
-		}
-	}
-	
-	/**
-	 * Renders the quality settings section.
-	 * Only visible when GPT Image-1 is selected.
-	 */
-	public function render_quality_section() {
-		// Check if OpenAI with GPT Image-1 model is selected
-		$saved_models = get_option('wp_ai_image_gen_provider_models', []);
-		$openai_model = isset($saved_models['openai']) ? $saved_models['openai'] : '';
-		
-		if ($openai_model !== 'gpt-image-1') {
-			return;
-		}
-
-		// Add quality field.
-		add_settings_field(
-			'wp_ai_image_gen_quality_setting',
-			'Image Quality',
-			[$this, 'render_quality_field'],
-			'wp-ai-image-gen-settings',
-			'wp_ai_image_gen_quality_section'
-		);
-	}
-
-	/**
-	 * Renders the quality field.
-	 */
-	public function render_quality_field() {
-		$quality_settings = get_option('wp_ai_image_gen_quality_settings', []);
-		$quality = isset($quality_settings['quality']) ? $quality_settings['quality'] : 'medium';
-		?>
-		<select name="wp_ai_image_gen_quality_settings[quality]">
-			<option value="low" <?php selected($quality, 'low'); ?>>Low</option>
-			<option value="medium" <?php selected($quality, 'medium'); ?>>Medium</option>
-			<option value="high" <?php selected($quality, 'high'); ?>>High</option>
-		</select>
-		<?php
-	}
-	
-	/**
 	 * Sanitizes the quality settings.
 	 * 
 	 * @param array $input The input array of quality settings.
@@ -301,6 +255,42 @@ class WP_AI_Image_Gen_Admin {
 		}
 		
 		return $sanitized_input;
+	}
+
+	/**
+	 * Renders the providers section description.
+	 */
+	public function render_providers_section() {
+		if (empty($this->providers)) {
+			wp_ai_image_gen_debug_log("No providers available in the provider list");
+			echo '<p class="notice notice-warning">No AI image providers are currently available. Please check the plugin installation.</p>';
+		} else {
+			wp_ai_image_gen_debug_log("Available providers: " . wp_json_encode($this->providers));
+			echo '<p>Configure your API keys and models for each AI image provider.</p>';
+		}
+	}
+
+	/**
+	 * Renders the quality settings section.
+	 */
+	public function render_quality_section() {
+		echo '<p>Configure the quality settings for generated images.</p>';
+	}
+
+	/**
+	 * Renders the quality field.
+	 */
+	public function render_quality_field() {
+		$quality_settings = get_option('wp_ai_image_gen_quality_settings', []);
+		$quality = isset($quality_settings['quality']) ? $quality_settings['quality'] : 'medium';
+		?>
+		<select name="wp_ai_image_gen_quality_settings[quality]">
+			<option value="low" <?php selected($quality, 'low'); ?>>Low</option>
+			<option value="medium" <?php selected($quality, 'medium'); ?>>Medium</option>
+			<option value="high" <?php selected($quality, 'high'); ?>>High</option>
+		</select>
+		<p class="description">Select the quality level for generated images. Higher quality may result in longer generation times.</p>
+		<?php
 	}
 
 	/**
@@ -327,26 +317,37 @@ class WP_AI_Image_Gen_Admin {
 	}
 
 	/**
-	 * Renders the model selection field for a provider.
-	 * 
-	 * @param array $args The field arguments.
+	 * Renders the main provider selection field.
 	 */
-	public function render_model_field($args) {
-		$provider_id = $args['provider_id'];
-		$models = $args['models'];
-		$saved_models = get_option('wp_ai_image_gen_provider_models', []);
-		$selected = isset($saved_models[$provider_id]) ? $saved_models[$provider_id] : '';
+	public function render_main_provider_field($args) {
+		$main_provider = get_option('wp_ai_image_gen_main_provider', '');
 		?>
-		<select name="wp_ai_image_gen_provider_models[<?php echo esc_attr($provider_id); ?>]">
-			<option value="">Select a model</option>
-			<?php foreach ($models as $model_id => $model_name) : ?>
-				<option value="<?php echo esc_attr($model_id); ?>" 
-						<?php selected($selected, $model_id); ?>>
-					<?php echo esc_html($model_name); ?>
+		<select name="wp_ai_image_gen_main_provider">
+			<option value="">Select Main Provider</option>
+			<?php foreach ($args['providers'] as $provider_id) : ?>
+				<option value="<?php echo esc_attr($provider_id); ?>" 
+						<?php selected($main_provider, $provider_id); ?>>
+					<?php echo esc_html($this->providers[$provider_id]); ?>
 				</option>
 			<?php endforeach; ?>
-		</select>		
+		</select>
+		<p class="description">Select the main provider to use for image generation. This provider will be used as the default when generating images.</p>
 		<?php
+	}
+
+	/**
+	 * Sanitizes the main provider setting.
+	 * 
+	 * @param string $input The input value for the main provider.
+	 * @return string The sanitized main provider value.
+	 */
+	public function sanitize_main_provider($input) {
+		$sanitized_input = sanitize_text_field($input);
+		// Only allow active providers to be set as main provider
+		if (!empty($sanitized_input) && !in_array($sanitized_input, $this->active_providers)) {
+			return '';
+		}
+		return $sanitized_input;
 	}
 
 	/**
@@ -355,24 +356,6 @@ class WP_AI_Image_Gen_Admin {
 	 * @param string $hook The current admin page hook.
 	 */
 	public function enqueue_scripts($hook) {
-
-		// Enqueue the main plugin script.
-		wp_enqueue_script('wp-ai-image-gen', plugin_dir_url(__FILE__) . '../build/index.js', ['wp-blocks', 'wp-i18n', 'wp-editor'], '1.0.0', true);
-
-		// Only load on our settings page
-		if ($hook !== 'settings_page_wp-ai-image-gen-settings') {
-			return;
-		}
-
-		// Enqueue the main plugin script
-		wp_enqueue_script(
-			'wp-ai-image-gen-admin',
-			plugin_dir_url(dirname(__FILE__)) . 'assets/js/admin.js',
-			['jquery'],
-			'1.0.0',
-			true
-		);
-
 		// Enqueue admin styles if needed
 		wp_enqueue_style(
 			'wp-ai-image-gen-admin',
@@ -381,7 +364,41 @@ class WP_AI_Image_Gen_Admin {
 			'1.0.0'
 		);
 
-		// Add any localized data if needed
+		// Enqueue block editor scripts
+		if (in_array($hook, ['post.php', 'post-new.php'])) {
+			// Get the main provider setting
+			$main_provider = get_option('wp_ai_image_gen_main_provider', '');
+
+			// If no main provider is set but we have active providers, use OpenAI if available, otherwise use the first active provider
+			if (empty($main_provider) && !empty($this->active_providers)) {
+				$api_keys = get_option('wp_ai_image_gen_provider_api_keys', []);
+				if (isset($api_keys['openai']) && !empty($api_keys['openai'])) {
+					$main_provider = 'openai';
+				} else {
+					$main_provider = $this->active_providers[0];
+				}
+			}
+
+			wp_enqueue_script(
+				'wp-ai-image-gen-editor',
+				plugin_dir_url(dirname(__FILE__)) . 'build/index.js',
+				['wp-blocks', 'wp-element', 'wp-editor', 'wp-components', 'wp-i18n'],
+				'1.0.0',
+				true
+			);
+
+			// Add localized data for the editor
+			wp_localize_script('wp-ai-image-gen-editor', 'wpAiImageGen', [
+				'ajaxUrl' => admin_url('admin-ajax.php'),
+				'nonce' => wp_create_nonce('wp_ai_image_gen_nonce'),
+				'mainProvider' => $main_provider,
+				'settings' => [
+					'mainProvider' => $main_provider
+				]
+			]);
+		}
+
+		// Add localized data for admin scripts
 		wp_localize_script('wp-ai-image-gen-admin', 'wpAiImageGen', [
 			'ajaxUrl' => admin_url('admin-ajax.php'),
 			'nonce' => wp_create_nonce('wp_ai_image_gen_nonce'),

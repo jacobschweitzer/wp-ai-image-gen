@@ -47,6 +47,31 @@ class WP_AI_Image_Provider_Replicate extends WP_AI_Image_Provider {
     }
 
     /**
+     * Overrides the parent method to get the current model from the quality setting.
+     * @return string The current model.
+     */
+    public function get_current_model() {
+        // Get all quality-related options to debug
+        $quality_settings = get_option('wp_ai_image_gen_quality_settings');
+        $quality_setting = get_option('wp_ai_image_gen_quality_setting');
+        wp_ai_image_gen_debug_log("All quality settings from options:");
+        wp_ai_image_gen_debug_log("- wp_ai_image_gen_quality_settings: " . wp_json_encode($quality_settings));
+        wp_ai_image_gen_debug_log("- wp_ai_image_gen_quality_setting: " . wp_json_encode($quality_setting));
+        
+        // Use the correct option name
+        $quality = 'medium'; // Default
+        if (is_array($quality_settings) && isset($quality_settings['quality'])) {
+            $quality = $quality_settings['quality'];
+        }
+        
+        wp_ai_image_gen_debug_log("Selected quality: " . $quality);
+        
+        $model = $this->get_model_from_quality_setting($quality);
+        wp_ai_image_gen_debug_log("Selected model based on quality: " . $model);
+        return $model;
+    }
+
+    /**
      * Makes the API request to generate an image.
      * @param string $prompt The text prompt for image generation.
      * @param array $additional_params Additional parameters for image generation.
@@ -226,5 +251,28 @@ class WP_AI_Image_Provider_Replicate extends WP_AI_Image_Provider {
             'recraft-ai/recraft-v3'          => 'Recraft V3 by Recraft AI (high quality)',
             'google/imagen-3'                => 'Imagen 3 by Google (highest quality)',
         ];
+    }
+
+    /**
+     * Gets the model from the quality setting.
+     * @param string $quality_setting The quality setting.
+     * @return string The model.
+     */
+    public function get_model_from_quality_setting($quality_setting) {
+        wp_ai_image_gen_debug_log("Mapping quality setting to model: " . $quality_setting);
+        switch ($quality_setting) {
+            case 'low':
+                $model = 'black-forest-labs/flux-schnell';
+                break;
+            case 'medium':
+                $model = 'google/imagen-3';
+                break;
+            case 'high':
+                $model = 'recraft-ai/recraft-v3';
+                break;
+            default:
+                $model = 'google/imagen-3'; // Default to medium quality
+        }
+        return $model;
     }
 }

@@ -112,10 +112,23 @@ final class WP_AI_Image_Gen_REST_Controller {
      * @return string|WP_Error The model or error.
      */
     private function get_provider_model($provider_id) {
+        // For Replicate, get the model based on quality setting
+        if ($provider_id === 'replicate') {
+            $quality_settings = get_option('wp_ai_image_gen_quality_settings', []);
+            $quality = isset($quality_settings['quality']) ? $quality_settings['quality'] : 'medium';
+            
+            $provider = wp_ai_image_gen_provider_manager()->get_provider($provider_id);
+            if ($provider) {
+                $model = $provider->get_model_from_quality_setting($quality);
+                wp_ai_image_gen_debug_log("Selected Replicate model based on quality {$quality}: {$model}");
+                return $model;
+            }
+        }
+
+        // For other providers, use the stored model or default
         $provider_models = get_option('wp_ai_image_gen_provider_models', []);
         $default_models = [
-            'replicate' => 'black-forest-labs/flux-schnell',
-            'openai'    => 'dall-e-3',
+            'openai' => 'dall-e-3',
         ];
 
         if (!empty($provider_models[$provider_id])) {
@@ -151,12 +164,28 @@ final class WP_AI_Image_Gen_REST_Controller {
             'output_quality' => $quality_value
         ];
         
-        // Only include style for non-GPT Image-1 models
+        // Get the provider and model
+        $provider_id = $request->get_param('provider');
         $provider_models = get_option('wp_ai_image_gen_provider_models', []);
-        $model = $provider_models[$request->get_param('provider')] ?? '';
+        $model = $provider_models[$provider_id] ?? '';
         
+        // Only include style for non-GPT Image-1 models
         if ($model !== 'gpt-image-1') {
-            $defaults['style'] = $style_value;
+            // Map styles based on the model
+            if ($model === 'recraft-ai/recraft-v3') {
+                // Recraft V3 style mapping
+                $style_map = [
+                    'natural' => 'realistic_image',
+                    'vivid' => 'digital_illustration'
+                ];
+            } else {
+                // Default style mapping for other models
+                $style_map = [
+                    'natural' => 'realistic_image/natural_light',
+                    'vivid' => 'digital_illustration'
+                ];
+            }
+            $defaults['style'] = $style_map[$style_value] ?? 'realistic_image';
         }
 
         $params = [];
@@ -324,7 +353,6 @@ final class WP_AI_Image_Gen_REST_Controller {
             $providers = wp_ai_image_gen_admin()->get_active_providers();
             return new WP_REST_Response($providers, 200);
         } catch (Exception $e) {
-            error_log('WP AI Image Gen Error: ' . $e->getMessage());
             return new WP_REST_Response(
                 ['error' => 'Error fetching providers: ' . $e->getMessage()],
                 500
@@ -341,7 +369,6 @@ final class WP_AI_Image_Gen_REST_Controller {
             $image_to_image_providers = wp_ai_image_gen_provider_manager()->get_image_to_image_providers();
             return new WP_REST_Response($image_to_image_providers, 200);
         } catch (Exception $e) {
-            error_log('WP AI Image Gen Error: ' . $e->getMessage());
             return new WP_REST_Response(
                 ['error' => 'Error fetching image-to-image providers: ' . $e->getMessage()],
                 500

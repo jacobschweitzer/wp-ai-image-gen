@@ -17,22 +17,13 @@ registerFormatType('wp-ai-image-gen/custom-format', {
     tagName: 'span',
     className: 'wp-ai-image-gen-format',
     edit: ({ isActive, value, onChange }) => { // This edit function adds AI image functionality to the block.
-        // Create state for the last used provider and generation state.
-        const [lastUsedProvider, setLastUsedProvider] = useState(''); // Stores the last used provider.
+        // Create state for generation state.
         const [isGenerating, setIsGenerating] = useState(false); // Indicates if an image is being generated.
 
         // Retrieve the currently selected block.
         const selectedBlock = useSelect((select) => select('core/block-editor').getSelectedBlock(), []);
         // Get the dispatch function to replace blocks.
         const { replaceBlocks } = useDispatch('core/block-editor');
-
-        // Fetch the last used provider from localStorage when the component mounts.
-        useEffect(() => {
-            const storedProvider = localStorage.getItem('wpAiImageGenLastProvider');
-            if (storedProvider) {
-                setLastUsedProvider(storedProvider);
-            }
-        }, []);
 
         /**
          * Handles the AI image generation process based on the selected text.
@@ -47,6 +38,16 @@ registerFormatType('wp-ai-image-gen/custom-format', {
                     // Create an error notice if no text is selected.
                     wp.data.dispatch('core/notices').createErrorNotice(
                         'Please select some text to use as the image generation prompt.',
+                        { type: 'snackbar' }
+                    );
+                    return;
+                }
+
+                // Get the main provider from editor settings
+                const mainProvider = wp.data.select('core/editor')?.getEditorSettings()?.wp_ai_image_gen_main_provider;
+                if (!mainProvider) {
+                    wp.data.dispatch('core/notices').createErrorNotice(
+                        'No AI provider configured. Please set one in the plugin settings.',
                         { type: 'snackbar' }
                     );
                     return;
@@ -66,7 +67,7 @@ registerFormatType('wp-ai-image-gen/custom-format', {
                 setIsGenerating(true); // Set generating state.
 
                 // Call the API function to generate the image.
-                generateImage(selectedText, lastUsedProvider, (result) => {
+                generateImage(selectedText, (result) => {
                     setIsGenerating(false); // Reset generating state.
                     
                     if (result.error) {
@@ -96,7 +97,7 @@ registerFormatType('wp-ai-image-gen/custom-format', {
                     }
                 });
             }
-        }, [selectedBlock, value.text, value.start, value.end, replaceBlocks, lastUsedProvider]);
+        }, [selectedBlock, value.text, value.start, value.end, replaceBlocks]);
 
         // Determine if any text is selected.
         const selectedText = value.text.slice(value.start, value.end).trim();

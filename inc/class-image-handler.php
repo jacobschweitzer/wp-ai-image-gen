@@ -17,14 +17,12 @@ class WP_AI_Image_Handler {
         $response = wp_remote_get($url, ['timeout' => 60]);
 
         if (is_wp_error($response)) {
-            error_log("WP AI Image Gen Error: Error downloading image: " . $response->get_error_message());
             return $response;
         }
 
         $image_data = wp_remote_retrieve_body($response);
 
         if (empty($image_data)) {
-            error_log("WP AI Image Gen Error: Downloaded image data is empty");
             return new WP_Error('empty_image', 'Downloaded image data is empty');
         }
 
@@ -59,12 +57,10 @@ class WP_AI_Image_Handler {
         $upload = wp_upload_bits($filename, null, $image_data);
 
         if ($upload['error']) {
-            error_log("WP AI Image Gen Error: Error uploading image: " . $upload['error']);
             return new WP_Error('upload_error', $upload['error']);
         }
 
         if (!file_exists($upload['file']) || !is_readable($upload['file'])) {
-            error_log("WP AI Image Gen Error: Uploaded file does not exist or is not readable");
             return new WP_Error('file_error', 'Uploaded file does not exist or is not readable');
         }
 
@@ -85,7 +81,6 @@ class WP_AI_Image_Handler {
         $attach_id = wp_insert_attachment($attachment, $upload['file']);
 
         if (is_wp_error($attach_id)) {
-            error_log("WP AI Image Gen Error: Error inserting attachment: " . $attach_id->get_error_message());
             return $attach_id;
         }
 

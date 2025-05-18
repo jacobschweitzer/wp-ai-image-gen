@@ -1,28 +1,9 @@
-// This file provides API functions for fetching available providers and generating AI images.
+// This file provides API functions for generating AI images.
 
 /**
- * Fetches available providers from the server.
- *
- * @returns {Promise<Object>} A promise that resolves to an object containing provider IDs and names.
- */
-export const fetchProviders = async () => { // This function fetches providers using WordPress API.
-    try {
-        // Attempt to fetch providers using wp.apiFetch.
-        const response = await wp.apiFetch({ path: '/wp-ai-image-gen/v1/providers' });
-        return response; // Return the successful response.
-    } catch (error) {
-        // Log any errors that occur during fetch.
-        console.error('Error fetching providers:', error);
-        // Return an object with an error field to indicate failure.
-        return { error: 'Unable to fetch providers. Please try again later.' };
-    }
-};
-
-/**
- * Generates an AI image based on the given prompt, provider, and optional parameters.
+ * Generates an AI image based on the given prompt and optional parameters.
  *
  * @param {string} prompt - The text prompt for image generation.
- * @param {string} provider - The selected provider ID.
  * @param {function} callback - The callback function to handle the generated image data.
  * @param {Object} [options] - Optional parameters for image generation.
  * @param {string} [options.sourceImageUrl] - URL of the source image for image-to-image generation.
@@ -32,9 +13,18 @@ export const fetchProviders = async () => { // This function fetches providers u
  * @param {string} [options.style] - Style parameter: 'natural' or 'vivid' (for GPT Image-1 only).
  * @returns {Promise<void>} A promise that resolves when the image generation is complete.
  */
-export const generateImage = async (prompt, provider, callback, options = {}) => {
+export const generateImage = async (prompt, callback, options = {}) => {
     try {
-        const data = { prompt, provider };
+        // Get the main provider setting from editor settings
+        const mainProvider = wp.data.select('core/editor')?.getEditorSettings()?.wp_ai_image_gen_main_provider;
+        if (!mainProvider) {
+            throw new Error('No main provider configured. Please check your plugin settings.');
+        }
+        
+        const data = { 
+            prompt,
+            provider: mainProvider // Use the main provider setting
+        };
         
         // Add source image URL if provided
         if (options.sourceImageUrl) {
