@@ -59,7 +59,6 @@ class WP_AI_Image_Gen_Admin {
 		// Add the main provider setting to the editor settings
 		add_filter('block_editor_settings_all', function($settings) {
 			$main_provider = get_option('wp_ai_image_gen_main_provider', '');
-			error_log('Main provider from options: ' . $main_provider); // Debug log
 			
 			// Ensure settings is an array
 			if (!is_array($settings)) {
@@ -80,7 +79,6 @@ class WP_AI_Image_Gen_Admin {
 			}
 			$settings['wp_ai_image_gen_settings']['main_provider'] = $main_provider;
 			
-			error_log('Editor settings after adding main provider: ' . print_r($settings, true)); // Debug log
 			return $settings;
 		}, 20); // Add a higher priority to ensure our settings are added after others
 	}
@@ -370,7 +368,6 @@ class WP_AI_Image_Gen_Admin {
 		if (in_array($hook, ['post.php', 'post-new.php'])) {
 			// Get the main provider setting
 			$main_provider = get_option('wp_ai_image_gen_main_provider', '');
-			error_log('Main provider for editor script: ' . $main_provider);
 
 			// If no main provider is set but we have active providers, use OpenAI if available, otherwise use the first active provider
 			if (empty($main_provider) && !empty($this->active_providers)) {
@@ -380,7 +377,6 @@ class WP_AI_Image_Gen_Admin {
 				} else {
 					$main_provider = $this->active_providers[0];
 				}
-				error_log('No main provider set, using default provider: ' . $main_provider);
 			}
 
 			wp_enqueue_script(
@@ -400,11 +396,6 @@ class WP_AI_Image_Gen_Admin {
 					'mainProvider' => $main_provider
 				]
 			]);
-
-			error_log('Localized data for editor script: ' . print_r([
-				'mainProvider' => $main_provider,
-				'settings' => ['mainProvider' => $main_provider]
-			], true));
 		}
 
 		// Add localized data for admin scripts

@@ -353,7 +353,6 @@ final class WP_AI_Image_Gen_REST_Controller {
             $providers = wp_ai_image_gen_admin()->get_active_providers();
             return new WP_REST_Response($providers, 200);
         } catch (Exception $e) {
-            error_log('WP AI Image Gen Error: ' . $e->getMessage());
             return new WP_REST_Response(
                 ['error' => 'Error fetching providers: ' . $e->getMessage()],
                 500
@@ -370,7 +369,6 @@ final class WP_AI_Image_Gen_REST_Controller {
             $image_to_image_providers = wp_ai_image_gen_provider_manager()->get_image_to_image_providers();
             return new WP_REST_Response($image_to_image_providers, 200);
         } catch (Exception $e) {
-            error_log('WP AI Image Gen Error: ' . $e->getMessage());
             return new WP_REST_Response(
                 ['error' => 'Error fetching image-to-image providers: ' . $e->getMessage()],
                 500
