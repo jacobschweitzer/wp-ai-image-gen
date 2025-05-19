@@ -22,7 +22,6 @@ Includes a WordPress Gutenberg block with a prompt box that generates an image a
 6. View/Edit the inserted image block (the alt text contains the prompt)
 
 ## Screenshots
-![Screenshot of the promt box and a generated image](https://github.com/user-attachments/assets/69483758-e641-45b9-a7c3-3def2109837d)
 ![1930s style movie marquee, "WP AI IMAGE GEN" is written in neon lights, excited crowd of people waiting outside](https://github.com/user-attachments/assets/11757cae-4bc5-4052-9fd3-ce1a4ef43a4c)
 !["Imagen" written in a vintage-style Art Deco with a towering, futuristic rocket launching to space adorned with golden accents, sharp geometric shapes, and sleek lines. The sky is deep red with stylized clouds, evoking a sense of grandeur and optimism. The foreground features a reflective waterfront showing a mirror image of the rocket. The color palette is bold and vibrant, with rich reds, yellows, and deep blues. Include large, bold typography.](https://github.com/user-attachments/assets/39aa472d-8395-4252-9ebd-4a396a96a3b1)
 
@@ -31,4 +30,4 @@ Includes a WordPress Gutenberg block with a prompt box that generates an image a
 - [Flux Schnell by Black Forest Labs](https://replicate.com/black-forest-labs/flux-schnell)
 - [Recraft V3 by Recraft AI](https://replicate.com/recraft-ai/recraft-v3)
 - [Imagen 3 by Google](https://replicate.com/google/imagen-3)
-- [GPT Image 1 by OpenAI]([https://platform.openai.com/docs/models/gpt-image-1](https://openai.com/index/image-generation-api/)
+- [GPT Image 1 by OpenAI](https://openai.com/index/image-generation-api)
