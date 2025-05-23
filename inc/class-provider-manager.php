@@ -110,23 +110,35 @@ class WP_AI_Image_Provider_Manager {
      * @return bool True if the provider supports image-to-image, false otherwise.
      */
     public function provider_supports_image_to_image($provider_id) {
-        $provider = $this->get_provider($provider_id);
+        $provider = $this->get_provider($provider_id); // This is a template instance
         if (!$provider) {
             return false;
         }
-        
-        // Get provider's current model
-        $provider_models = get_option('wp_ai_image_gen_provider_models', []);
+
         $api_keys = get_option('wp_ai_image_gen_provider_api_keys', []);
-        
-        // Check if we have a valid API key and model set
         if (!isset($api_keys[$provider_id]) || empty($api_keys[$provider_id])) {
             return false;
         }
+
+        $model = '';
+
+        if ($provider_id === 'openai') {
+            $model = 'gpt-image-1';
+        } elseif ($provider_id === 'replicate') {
+            $quality_settings = get_option('wp_ai_image_gen_quality_settings', []);
+            $quality = $quality_settings['quality'] ?? 'medium';
+            // Use the $provider template instance to get model from quality setting
+            $model = $provider->get_model_from_quality_setting($quality);
+            if (empty($model)) {
+                // If no model could be determined for Replicate, it doesn't support I2I in this context.
+                return false;
+            }
+        } else {
+            // For any other provider, return false as model determination is not supported here.
+            return false;
+        }
         
-        $model = isset($provider_models[$provider_id]) ? $provider_models[$provider_id] : '';
-        
-        // Create a new instance with the current API key and model
+        // Create a new instance with the determined API key and model
         $provider_class = get_class($provider);
         $provider_instance = new $provider_class($api_keys[$provider_id], $model);
         

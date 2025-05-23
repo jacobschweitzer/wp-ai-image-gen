@@ -112,6 +112,11 @@ final class WP_AI_Image_Gen_REST_Controller {
      * @return string|WP_Error The model or error.
      */
     private function get_provider_model($provider_id) {
+        // For OpenAI, always use gpt-image-1
+        if ($provider_id === 'openai') {
+            return 'gpt-image-1';
+        }
+
         // For Replicate, get the model based on quality setting
         if ($provider_id === 'replicate') {
             $quality_settings = get_option('wp_ai_image_gen_quality_settings', []);
@@ -123,27 +128,11 @@ final class WP_AI_Image_Gen_REST_Controller {
                 wp_ai_image_gen_debug_log("Selected Replicate model based on quality {$quality}: {$model}");
                 return $model;
             }
+            // If provider instance not found for replicate, fall through to error
         }
 
-        // For other providers, use the stored model or default
-        $provider_models = get_option('wp_ai_image_gen_provider_models', []);
-        $default_models = [
-            'openai' => 'dall-e-3',
-        ];
-
-        if (!empty($provider_models[$provider_id])) {
-            return $provider_models[$provider_id];
-        }
-
-        if (!empty($default_models[$provider_id])) {
-            $model = $default_models[$provider_id];
-            $provider_models[$provider_id] = $model;
-            update_option('wp_ai_image_gen_provider_models', $provider_models);
-            wp_ai_image_gen_debug_log("Assigned default model for {$provider_id}: {$model}");
-            return $model;
-        }
-
-        return new WP_Error('model_not_set', "No model set for provider: {$provider_id}", ['status' => 400]);
+        // For any other provider, return an error.
+        return new WP_Error('model_not_set', "No model set or provider not supported: {$provider_id}", ['status' => 400]);
     }
 
     /**
@@ -166,8 +155,11 @@ final class WP_AI_Image_Gen_REST_Controller {
         
         // Get the provider and model
         $provider_id = $request->get_param('provider');
-        $provider_models = get_option('wp_ai_image_gen_provider_models', []);
-        $model = $provider_models[$provider_id] ?? '';
+        $model_or_error = $this->get_provider_model($provider_id);
+        $model = '';
+        if (!is_wp_error($model_or_error)) {
+            $model = $model_or_error;
+        }
         
         // Only include style for non-GPT Image-1 models
         if ($model !== 'gpt-image-1') {
@@ -191,6 +183,12 @@ final class WP_AI_Image_Gen_REST_Controller {
         $params = [];
         foreach ($defaults as $key => $default) {
             $params[$key] = $request->get_param($key) ?? $default;
+        }
+
+        // Add OpenAI specific quality parameter
+        if ($provider_id === 'openai') {
+            // $quality_settings is already fetched at the beginning of the method.
+            $params['quality'] = (isset($quality_settings['quality']) && $quality_settings['quality'] === 'hd') ? 'hd' : 'standard';
         }
 
         // Add source image URL if provided (single or array)
@@ -330,8 +328,8 @@ final class WP_AI_Image_Gen_REST_Controller {
      * @return array|WP_Error The result or error.
      */
     private function make_provider_request($provider_id, $prompt, $model, $additional_params) {
-        $provider = wp_ai_image_gen_provider_manager()->get_provider($provider_id);
-        if (!$provider) {
+        $provider_object_from_manager = wp_ai_image_gen_provider_manager()->get_provider($provider_id);
+        if (!$provider_object_from_manager) {
             return new WP_Error('invalid_provider', "Invalid provider: {$provider_id}");
         }
 
@@ -339,7 +337,9 @@ final class WP_AI_Image_Gen_REST_Controller {
         $api_keys = get_option('wp_ai_image_gen_provider_api_keys', []);
         $api_key = isset($api_keys[$provider_id]) ? $api_keys[$provider_id] : '';
         
-        $provider = new $provider($api_key, $model);
+        // Instantiate the provider class with the API key and model
+        $provider_class_name = get_class($provider_object_from_manager);
+        $provider = new $provider_class_name($api_key, $model);
         
         return $provider->generate_image($prompt, $additional_params);
     }
