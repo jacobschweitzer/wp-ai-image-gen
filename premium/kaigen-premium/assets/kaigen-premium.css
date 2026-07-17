@@ -1,0 +1,30 @@
+.kaigen-image-agent-launcher.components-button {
+	align-items: center;
+	background: #1f2328;
+	border: 1px solid #1f2328;
+	border-radius: 999px;
+	bottom: 28px;
+	box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+	color: #fff;
+	display: inline-flex;
+	font-weight: 600;
+	gap: 8px;
+	height: 44px;
+	padding: 0 16px;
+	position: fixed;
+	right: 28px;
+	z-index: 100000;
+}
+
+.kaigen-image-agent-launcher.components-button:hover,
+.kaigen-image-agent-launcher.components-button:focus {
+	background: #3858e9;
+	border-color: #3858e9;
+	color: #fff;
+}
+
+.kaigen-image-agent-launcher .components-spinner {
+	height: 16px;
+	margin: 0;
+	width: 16px;
+}

@@ -1,0 +1,23 @@
+{
+	"name": "kaigen-premium",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Premium editorial image workflows for KaiGen.",
+	"license": "GPL-2.0-or-later",
+	"scripts": {
+		"build": "wp-scripts build src/index.js",
+		"lint:css": "wp-scripts lint-style assets",
+		"lint:js": "wp-scripts lint-js src tests/unit",
+		"test:unit": "wp-scripts test-unit-js tests/unit"
+	},
+	"dependencies": {
+		"@wordpress/api-fetch": "^7.46.0",
+		"@wordpress/components": "^33.1.0",
+		"@wordpress/data": "^10.46.0",
+		"@wordpress/element": "^6.46.0"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.57.0",
+		"@wordpress/scripts": "^32.2.0"
+	}
+}
