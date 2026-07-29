@@ -399,14 +399,21 @@ test.describe( 'KaiGen Image Generation', () => {
 	test( '@generation inserts a mocked generated image into an empty image block', async ( {
 		page,
 	} ) => {
-		test.skip(
-			! ( process.env.PLAYGROUND_BLUEPRINT || '' ).endsWith(
-				'e2e-generation-mocked.json'
-			),
-			'Requires the mocked generation blueprint.'
+		expect( process.env.PLAYGROUND_BLUEPRINT || '' ).toMatch(
+			/e2e-generation-mocked\.json$/
 		);
 
 		const editor = createEditorHarness( page );
+
+		const fixtureMedia = await page.evaluate( async () =>
+			( window as any ).wp.apiFetch( {
+				path: '/kaigen-e2e/v1/reference-media',
+				method: 'POST',
+			} )
+		);
+		const markedFixture = fixtureMedia.find( ( item ) => item.marked );
+		expect( markedFixture ).toBeDefined();
+		expect( markedFixture.id ).toBeGreaterThan( 0 );
 
 		await editor.insertBlock( { name: 'core/image' } );
 
@@ -417,6 +424,22 @@ test.describe( 'KaiGen Image Generation', () => {
 		const promptInput = modal.getByPlaceholder( 'Type to imagine' );
 		await promptInput.fill( 'subject' );
 		await expect( promptInput ).toHaveValue( 'subject' );
+		const referenceToggle = modal.getByRole( 'button', {
+			name: 'Reference Images',
+		} );
+		await referenceToggle.click();
+		const markedReference = page
+			.getByRole( 'menuitemcheckbox', {
+				name: 'KaiGen marked reference fixture',
+			} )
+			.first();
+		await expect( markedReference ).toBeVisible();
+		await markedReference.click();
+		await expect( markedReference ).toHaveAttribute(
+			'aria-checked',
+			'true'
+		);
+		await page.keyboard.press( 'Escape' );
 		const generateButton = modal.getByRole( 'button', {
 			name: 'Generate Image',
 		} );
@@ -430,8 +453,11 @@ test.describe( 'KaiGen Image Generation', () => {
 		);
 		await generateButton.click( { force: true } );
 		const generationResponse = await generationResponsePromise;
-		expect( generationResponse.ok() ).toBe( true );
 		const generationResult = await generationResponse.json();
+		expect(
+			generationResponse.ok(),
+			JSON.stringify( generationResult )
+		).toBe( true );
 		expect( generationResult.status ).toBe( 'completed' );
 		expect( generationResult.metadata ).toEqual(
 			expect.objectContaining( {

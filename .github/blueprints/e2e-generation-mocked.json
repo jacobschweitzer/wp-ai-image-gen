@@ -18,7 +18,7 @@
 		},
 		{
 			"step": "runPHP",
-			"code": "<?php $mu_plugins_dir = '/wordpress/wp-content/mu-plugins'; $fixture_dir = '/wordpress/wp-content/plugins/kaigen/tests/e2e/fixtures/mu-plugins'; if ( ! is_dir( $mu_plugins_dir ) ) { mkdir( $mu_plugins_dir, 0777, true ); } foreach ( [ 'kaigen-e2e-provider.php', 'kaigen-e2e-generation-mock.php' ] as $fixture ) { if ( ! copy( $fixture_dir . '/' . $fixture, $mu_plugins_dir . '/' . $fixture ) ) { throw new Exception( 'Unable to copy E2E fixture: ' . $fixture ); } }"
+			"code": "<?php $mu_plugins_dir = '/wordpress/wp-content/mu-plugins'; $fixture_dir = '/wordpress/wp-content/plugins/kaigen/tests/e2e/fixtures/mu-plugins'; if ( ! is_dir( $mu_plugins_dir ) ) { mkdir( $mu_plugins_dir, 0777, true ); } foreach ( [ 'kaigen-e2e-provider.php', 'kaigen-e2e-generation-mock.php', 'kaigen-e2e-reference-media.php' ] as $fixture ) { if ( ! copy( $fixture_dir . '/' . $fixture, $mu_plugins_dir . '/' . $fixture ) ) { throw new Exception( 'Unable to copy E2E fixture: ' . $fixture ); } }"
 		},
 		{
 			"step": "activatePlugin",

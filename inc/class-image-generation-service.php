@@ -21,6 +21,27 @@ final class Image_Generation_Service {
 	private const IMAGE_GENERATION_TIMEOUT = 180;
 
 	/**
+	 * AI Client prompt factory.
+	 *
+	 * @var callable|string
+	 */
+	private $prompt_factory;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param callable|string|null $prompt_factory AI Client prompt factory.
+	 */
+	public function __construct( $prompt_factory = null ) {
+		/**
+		 * Filters the AI Client prompt factory used for image generation.
+		 *
+		 * @param callable|string $prompt_factory Prompt factory callable.
+		 */
+		$this->prompt_factory = $prompt_factory ?? apply_filters( 'kaigen_ai_client_prompt_factory', 'wp_ai_client_prompt' );
+	}
+
+	/**
 	 * Handles an image generation request through the WordPress AI Client.
 	 *
 	 * @param \WP_REST_Request $request The request object.
@@ -35,28 +56,7 @@ final class Image_Generation_Service {
 			return new WP_Error( 'missing_prompt', __( 'Prompt is required.', 'kaigen' ), [ 'status' => 400 ] );
 		}
 
-		/**
-		 * Filters a generated image result before KaiGen calls the WordPress AI Client.
-		 *
-		 * Returning a non-null value short-circuits the provider request while preserving
-		 * KaiGen's REST handling, result serialization, and media-library upload flow.
-		 *
-		 * @param null|object|WP_Error $result Initial null result, or a generated image result.
-		 * @param string               $prompt The prompt text.
-		 * @param string               $orientation The requested Core orientation.
-		 * @param string               $provider The selected provider ID, or auto.
-		 * @param mixed                $source_image_ids Reference attachment IDs.
-		 */
-		$pre_generated_result = apply_filters(
-			'kaigen_pre_generate_image_result',
-			null,
-			$prompt,
-			$orientation,
-			$provider,
-			$request->get_param( 'source_image_ids' )
-		);
-
-		if ( null === $pre_generated_result && ! function_exists( 'wp_ai_client_prompt' ) ) {
+		if ( ! is_callable( $this->prompt_factory ) ) {
 			return new WP_Error(
 				'ai_client_unavailable',
 				__( 'WordPress AI Client is not available.', 'kaigen' ),
@@ -70,14 +70,12 @@ final class Image_Generation_Service {
 			add_filter( 'wp_ai_client_default_request_timeout', $timeout_filter );
 			do_action( 'kaigen_before_image_generation_request' );
 
-			$result = null !== $pre_generated_result
-				? $pre_generated_result
-				: $this->generate_image_result(
-					$prompt,
-					$orientation,
-					$provider,
-					$request->get_param( 'source_image_ids' )
-				);
+			$result = $this->generate_image_result(
+				$prompt,
+				$orientation,
+				$provider,
+				$request->get_param( 'source_image_ids' )
+			);
 			if ( is_wp_error( $result ) ) {
 				return $result;
 			}
@@ -218,7 +216,7 @@ final class Image_Generation_Service {
 	 * @return object Prompt builder.
 	 */
 	private function build_prompt( $prompt, $orientation, $provider ) {
-		$builder = wp_ai_client_prompt()
+		$builder = call_user_func( $this->prompt_factory )
 			->with_text( $prompt );
 
 		$file_type_class = 'WordPress\\AiClient\\Files\\Enums\\FileTypeEnum';
