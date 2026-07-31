@@ -10,6 +10,10 @@ enforces the existing PHP tests, JavaScript unit tests, E2E launcher tests, and
 production build. The tasks below are the remaining work needed to make the
 base-plugin safety net substantially stronger.
 
+Every verification type now has an initial real target and CI lane documented
+in `TESTING.md`. The unchecked work below expands depth within those layers; it
+no longer represents missing test infrastructure.
+
 ## P1: Behavioral PHP coverage
 
 - [ ] Test prompt, provider, and orientation construction with behavioral fakes,
@@ -39,7 +43,7 @@ base-plugin safety net substantially stronger.
 
 ## P2: JavaScript behavior
 
-- [ ] Replace or supplement source-inspection tests with rendered component and
+- [x] Replace or supplement source-inspection tests with rendered component and
       interaction tests.
 - [ ] Test loading, error, retry, and duplicate-submit states in the generation
       modal.
@@ -61,19 +65,19 @@ base-plugin safety net substantially stronger.
 
 ## P2: AI Client compatibility
 
-- [ ] Add a separate compatibility test against the supported real WordPress AI
+- [x] Add a separate compatibility test against the supported real WordPress AI
       Client API so upstream contract drift cannot be hidden by KaiGen's fake.
-- [ ] Keep live or version-matrix compatibility checks separate from the fast,
+- [x] Keep live or version-matrix compatibility checks separate from the fast,
       deterministic pull-request suite.
 
 ## P3: Quality signals
 
-- [ ] Add a supported WordPress and PHP version compatibility matrix that is
+- [x] Add a supported WordPress and PHP version compatibility matrix that is
       separate from the development toolchain runtime.
-- [ ] Publish PHP and JavaScript coverage reports and define risk-based minimums.
+- [x] Publish PHP and JavaScript coverage reports and define risk-based minimums.
 - [ ] Introduce focused mutation testing for request construction, permissions,
       retries, and media handling.
-- [ ] Add PHP static analysis and enforce an agreed baseline in CI.
+- [x] Add PHP static analysis and enforce an agreed baseline in CI.
 - [ ] Periodically audit tests that only inspect source text and convert important
       contracts to behavioral tests.
 

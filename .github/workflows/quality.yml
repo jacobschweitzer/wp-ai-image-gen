@@ -1,0 +1,59 @@
+name: Mutation Quality
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  javascript-mutation:
+    name: JavaScript Mutation Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Run targeted JavaScript mutation tests
+        run: npm run test:mutation:js
+
+  php-mutation:
+    name: PHP Mutation Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer
+          coverage: xdebug
+
+      - name: Install test dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Install isolated mutation tooling
+        run: composer install --working-dir=tools/infection --no-interaction --prefer-dist
+
+      - name: Run targeted PHP mutation tests
+        env:
+          XDEBUG_MODE: coverage
+        run: npm run test:php:mutation

@@ -4,6 +4,11 @@
 	colors="true"
 	cacheDirectory=".phpunit.cache"
 >
+	<source>
+		<include>
+			<directory suffix=".php">inc</directory>
+		</include>
+	</source>
 	<testsuites>
 		<testsuite name="KaiGen PHP Unit Tests">
 			<directory suffix="Test.php">tests/php</directory>

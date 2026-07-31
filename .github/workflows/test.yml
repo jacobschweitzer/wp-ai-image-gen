@@ -32,7 +32,7 @@ jobs:
         with:
           php-version: "8.1"
           tools: composer
-          coverage: none
+          coverage: xdebug
 
       - name: Install npm dependencies
         run: npm ci
@@ -40,11 +40,19 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist
 
-      - name: Run JavaScript unit tests
-        run: npm run test:unit -- --runInBand
+      - name: Run JavaScript unit tests with coverage
+        run: npm run test:unit:coverage
 
-      - name: Run PHP unit tests
-        run: composer exec phpunit -- --fail-on-empty-test-suite
+      - name: Run PHP unit tests with coverage
+        env:
+          XDEBUG_MODE: coverage
+        run: npm run test:php:coverage
+
+      - name: Run PHP static analysis
+        run: npm run test:php:static
+
+      - name: Enforce PHP complexity ceilings
+        run: npm run test:php:complexity
 
       - name: Run E2E launcher tests
         run: npm run test:e2e:launcher
@@ -54,3 +62,14 @@ jobs:
 
       - name: Verify committed build assets
         run: git diff --exit-code -- build/
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.run_id }}
+          path: |
+            coverage/
+            tests/test-results/php-coverage/
+          if-no-files-found: error
+          retention-days: 14

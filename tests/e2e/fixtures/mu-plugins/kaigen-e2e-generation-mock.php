@@ -201,6 +201,14 @@ namespace {
 		 * @return KaiGen_E2E_Image_Result|WP_Error Generated result or request mismatch.
 		 */
 		public function generate_image_result() {
+			if ( 'force-error' === $this->prompt ) {
+				return new WP_Error(
+					'e2e_forced_generation_error',
+					'Deterministic image provider failure.',
+					[ 'status' => 503 ]
+				);
+			}
+
 			$has_expected_reference = 1 === count( $this->files )
 				&& 1 === preg_match( '/^kaigen-reference-marked(?:-\d+)?\.png$/', $this->files[0]['basename'] )
 				&& 'image/png' === $this->files[0]['mime_type'];

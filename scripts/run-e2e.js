@@ -2,7 +2,9 @@
 /* eslint-disable no-console */
 
 const { spawn } = require( 'node:child_process' );
+const fs = require( 'node:fs' );
 const net = require( 'node:net' );
+const os = require( 'node:os' );
 const path = require( 'node:path' );
 
 const DEFAULT_HOST = '127.0.0.1';
@@ -97,8 +99,7 @@ const findAvailablePort = async ( {
 
 const resolvePlaygroundPort = async ( env = process.env ) => {
 	if ( env.PLAYGROUND_PORT ) {
-		normalizePort( env.PLAYGROUND_PORT );
-		return env.PLAYGROUND_PORT;
+		return String( normalizePort( env.PLAYGROUND_PORT ) );
 	}
 
 	if ( env.PLAYWRIGHT_SKIP_WEBSERVER === '1' ) {
@@ -184,6 +185,11 @@ const runPlaywright = async (
 	};
 
 	console.log( `Using WordPress Playground port ${ playgroundPort }.` );
+	const cleanupRuntimeBlueprint = () =>
+		fs.rmSync(
+			path.join( os.tmpdir(), `kaigen-playground-${ playgroundPort }` ),
+			{ recursive: true, force: true }
+		);
 
 	return new Promise( ( resolve, reject ) => {
 		const child = spawn(
@@ -195,8 +201,12 @@ const runPlaywright = async (
 			}
 		);
 
-		child.once( 'error', reject );
+		child.once( 'error', ( error ) => {
+			cleanupRuntimeBlueprint();
+			reject( error );
+		} );
 		child.once( 'exit', ( code, signal ) => {
+			cleanupRuntimeBlueprint();
 			if ( signal ) {
 				reject(
 					new Error( `Playwright exited with signal ${ signal }.` )
@@ -222,6 +232,7 @@ if ( require.main === module ) {
 
 module.exports = {
 	findAvailablePort,
+	normalizePort,
 	resolvePlaygroundPort,
 	resolvePlaywrightLaunch,
 	resolvePlaywrightArgs,

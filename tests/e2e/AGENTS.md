@@ -11,6 +11,7 @@ KaiGen E2E tests use Playwright + WordPress Playground.
 - Fast smoke check after editor UI changes: `npm run test:e2e:smoke`
 - Reference image workflow check: `npm run test:e2e:reference`
 - Mocked generation workflow check: `npm run test:e2e:generation`
+- Real AI Client contract check: `npm run test:e2e:contract`
 - Run a single file with the base blueprint: `npm run test:e2e:base -- tests/e2e/image-generation.spec.ts`
 - Debug: `npm run test:e2e:debug`
 - UI mode: `npm run test:e2e:ui`
@@ -23,6 +24,7 @@ KaiGen E2E tests use Playwright + WordPress Playground.
 - Default blueprint: `.github/blueprints/e2e-base.json`.
 - Reference media blueprint: `.github/blueprints/e2e-reference-media.json`, provides a `POST /wp-json/kaigen-e2e/v1/reference-media` fixture route for marked/unmarked media.
 - Mocked generation blueprint: `.github/blueprints/e2e-generation-mocked.json`, used for deterministic generation success coverage.
+- AI Client contract blueprint: `.github/blueprints/e2e-ai-client-contract.json`, uses the real WordPress 7.0 AI Client and only a media fixture; do not install the mocked prompt builder in this scenario.
 - Blueprint-specific server behavior lives in `tests/e2e/fixtures/mu-plugins/`; update those PHP fixtures instead of embedding large PHP strings in blueprint JSON.
 - Select a blueprint with `--playground-blueprint=<path>` before normal Playwright args when calling the raw launcher, for example `node scripts/run-e2e.js --playground-blueprint=.github/blueprints/e2e-reference-media.json --grep @reference`.
 - Debug a scenario by appending Playwright args to that scenario script, for example `npm run test:e2e:reference -- --debug`.
@@ -34,6 +36,7 @@ KaiGen E2E tests use Playwright + WordPress Playground.
 - Do not stop or reuse another agent's Playground process. For normal E2E runs, use `npm run test:e2e` and let the launcher choose a free port.
 - If you manually start Playground for debugging, start it with the same unique port you will use for Playwright, for example `PLAYGROUND_PORT=9411 npm run playground:start` and `PLAYGROUND_PORT=9411 PLAYWRIGHT_SKIP_WEBSERVER=1 npm run test:e2e`.
 - `npm run playground:start` honors `PLAYGROUND_PORT`, `PLAYGROUND_BLUEPRINT`, and `PLAYGROUND_WORKERS`. If `PLAYGROUND_PORT` is unset, it starts at the first available port at or above `9400`.
+- Compatibility runs may override the booted versions with `PLAYGROUND_WP_VERSION` and `PLAYGROUND_PHP_VERSION`.
 
 ## Agent QA Workflow
 - Start with the smallest command that covers the change: smoke for generic editor UI, reference for media/reference changes, generation for generate/insert behavior.
@@ -47,4 +50,7 @@ KaiGen E2E tests use Playwright + WordPress Playground.
 - MVP editor settings exposed to the block editor.
 - Modal controls for prompt, provider, and orientation.
 - Mocked image generation insertion with deterministic media response.
+- Provider-failure behavior that preserves the existing block.
+- Real AI Client request construction and runtime-version contract.
+- Anonymous REST authorization rejection.
 - Sidebar reference image marking and `/kaigen/v1/reference-images`.

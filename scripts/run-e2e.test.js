@@ -1,4 +1,5 @@
 const assert = require( 'node:assert/strict' );
+const { EventEmitter } = require( 'node:events' );
 const net = require( 'node:net' );
 const test = require( 'node:test' );
 
@@ -9,9 +10,13 @@ const {
 	resolvePlaywrightArgs,
 } = require( './run-e2e.js' );
 const {
+	applyRuntimeVersions,
 	buildPlaygroundServerArgs,
 	resolvePlaygroundBlueprint,
+	resolvePlaygroundPhpVersion,
+	resolvePlaygroundWordPressVersion,
 	resolveManualPlaygroundPort,
+	registerRuntimeBlueprintCleanup,
 } = require( './playground-server.js' );
 
 const listenOnPort = async ( port ) =>
@@ -54,6 +59,14 @@ test( 'resolvePlaygroundPort preserves an explicit PLAYGROUND_PORT', async () =>
 	assert.equal( port, '9417' );
 } );
 
+test( 'resolvePlaygroundPort canonicalizes an explicit port', async () => {
+	const port = await resolvePlaygroundPort( {
+		PLAYGROUND_PORT: '09417',
+	} );
+
+	assert.equal( port, '9417' );
+} );
+
 test( 'resolveManualPlaygroundPort skips a busy default port', async () => {
 	const busyServer = await listenOnPort( 9400 );
 
@@ -66,6 +79,17 @@ test( 'resolveManualPlaygroundPort skips a busy default port', async () => {
 	} finally {
 		await closeServer( busyServer );
 	}
+} );
+
+test( 'resolveManualPlaygroundPort rejects path-like ports', async () => {
+	await assert.rejects(
+		resolveManualPlaygroundPort( { PLAYGROUND_PORT: '../../victim' } ),
+		/Invalid port/
+	);
+	await assert.rejects(
+		resolveManualPlaygroundPort( { PLAYGROUND_PORT: '70000' } ),
+		/Invalid port/
+	);
 } );
 
 test( 'resolvePlaygroundBlueprint defaults to the base E2E blueprint', () => {
@@ -82,6 +106,59 @@ test( 'resolvePlaygroundBlueprint preserves an explicit PLAYGROUND_BLUEPRINT', (
 		} ),
 		'.github/blueprints/e2e-reference-media.json'
 	);
+} );
+
+test( 'runtime resolvers preserve deterministic blueprint defaults', () => {
+	assert.equal( resolvePlaygroundPhpVersion( {} ), '8.1' );
+	assert.equal(
+		resolvePlaygroundWordPressVersion(
+			'.github/blueprints/e2e-ai-client-contract.json',
+			{}
+		),
+		'7.0'
+	);
+	assert.equal(
+		resolvePlaygroundWordPressVersion(
+			'.github/blueprints/e2e-base.json',
+			{}
+		),
+		'latest'
+	);
+} );
+
+test( 'applyRuntimeVersions overrides blueprint worker runtimes', () => {
+	assert.deepEqual(
+		applyRuntimeVersions(
+			{
+				preferredVersions: { php: '8.5', wp: 'nightly' },
+				steps: [],
+			},
+			'7.4',
+			'7.0'
+		),
+		{
+			preferredVersions: { php: '7.4', wp: '7.0' },
+			steps: [],
+		}
+	);
+} );
+
+test( 'runtime blueprint cleanup runs once on wrapper termination', () => {
+	const processObject = new EventEmitter();
+	let cleanupCalls = 0;
+	let exitCode;
+	processObject.exit = ( code ) => {
+		exitCode = code;
+		processObject.emit( 'exit' );
+	};
+
+	registerRuntimeBlueprintCleanup( () => {
+		cleanupCalls++;
+	}, processObject );
+	processObject.emit( 'SIGTERM' );
+
+	assert.equal( cleanupCalls, 1 );
+	assert.equal( exitCode, 143 );
 } );
 
 test( 'buildPlaygroundServerArgs includes port, blueprint, and workers', () => {
@@ -104,6 +181,18 @@ test( 'buildPlaygroundServerArgs includes port, blueprint, and workers', () => {
 			'--workers=auto',
 		]
 	);
+} );
+
+test( 'buildPlaygroundServerArgs applies runtime compatibility overrides', () => {
+	const args = buildPlaygroundServerArgs( {
+		port: '9412',
+		blueprint: '.github/blueprints/e2e-base.json',
+		phpVersion: '7.4',
+		wordpressVersion: '7.0',
+	} );
+
+	assert.equal( args.includes( '--php=7.4' ), true );
+	assert.equal( args.includes( '--wp=7.0' ), true );
 } );
 
 test( 'resolvePlaywrightLaunch strips playground blueprint flags', () => {

@@ -1,6 +1,6 @@
 import apiFetch from '@wordpress/api-fetch';
 
-import { generateImage } from '../../src/api';
+import { fetchReferenceImages, generateImage } from '../../src/api';
 
 jest.mock( '@wordpress/api-fetch' );
 
@@ -72,6 +72,64 @@ describe( 'generateImage', () => {
 		);
 	} );
 
+	it( 'uses safe defaults and omits absent reference IDs', async () => {
+		apiFetch.mockResolvedValue( {
+			url: 'https://example.com/generated-image.jpg',
+		} );
+
+		const media = await generateImage( 'Default request' );
+
+		expect( apiFetch ).toHaveBeenCalledWith( {
+			path: '/kaigen/v1/generate-image',
+			method: 'POST',
+			data: {
+				prompt: 'Default request',
+				provider: 'auto',
+				orientation: 'square',
+			},
+		} );
+		expect( media ).not.toHaveProperty( 'id' );
+	} );
+
+	it( 'omits malformed reference IDs and invalid media IDs', async () => {
+		apiFetch.mockResolvedValue( {
+			id: '123',
+			url: 'https://example.com/generated-image.jpg',
+		} );
+
+		const media = await generateImage( 'Invalid identifiers', {
+			sourceImageIds: '10',
+		} );
+
+		expect( apiFetch ).toHaveBeenCalledWith(
+			expect.objectContaining( {
+				data: expect.not.objectContaining( {
+					source_image_ids: expect.anything(),
+				} ),
+			} )
+		);
+		expect( media ).not.toHaveProperty( 'id' );
+	} );
+
+	it( 'normalizes a rejected API request', async () => {
+		apiFetch.mockRejectedValue( { message: 'Provider unavailable' } );
+
+		await expect( generateImage( 'Failure' ) ).rejects.toThrow(
+			'Provider unavailable'
+		);
+	} );
+
+	it( 'normalizes a structured error response', async () => {
+		apiFetch.mockResolvedValue( {
+			code: 'generation_failed',
+			message: 'Generation failed',
+		} );
+
+		await expect( generateImage( 'Failure' ) ).rejects.toThrow(
+			'Generation failed'
+		);
+	} );
+
 	it( 'throws when the server response does not include an image URL', async () => {
 		apiFetch.mockResolvedValue( {
 			id: 123,
@@ -80,5 +138,25 @@ describe( 'generateImage', () => {
 		await expect( generateImage( 'A missing image URL' ) ).rejects.toThrow(
 			'Invalid response from server: {"id":123}'
 		);
+	} );
+
+	it( 'fetches reference images and rejects malformed collections', async () => {
+		const references = [ { id: 10, url: 'https://example.com/ref.png' } ];
+		apiFetch.mockResolvedValueOnce( references );
+
+		await expect( fetchReferenceImages() ).resolves.toEqual( references );
+		expect( apiFetch ).toHaveBeenCalledWith( {
+			path: '/kaigen/v1/reference-images',
+			method: 'GET',
+		} );
+
+		apiFetch.mockResolvedValueOnce( { references } );
+		await expect( fetchReferenceImages() ).resolves.toEqual( [] );
+	} );
+
+	it( 'returns an empty reference list when the API fails', async () => {
+		apiFetch.mockRejectedValue( new Error( 'Network failure' ) );
+
+		await expect( fetchReferenceImages() ).resolves.toEqual( [] );
 	} );
 } );

@@ -1,0 +1,13 @@
+{
+	"name": "kaigen/infection-tools",
+	"description": "Isolated mutation-testing tools for KaiGen.",
+	"private": true,
+	"require-dev": {
+		"infection/infection": "^0.34.1"
+	},
+	"config": {
+		"allow-plugins": {
+			"infection/extension-installer": true
+		}
+	}
+}

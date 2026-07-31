@@ -109,8 +109,8 @@ src/
 This plugin uses the WordPress Scripts build system. To build from source:
 
 **Prerequisites:**
-- Node.js (v18.12.0 or higher)
-- npm (v8.19.2 or higher)
+- Node.js (v20.0.0 or higher)
+- npm (v10.0.0 or higher)
 
 **Build Commands:**
 ```bash

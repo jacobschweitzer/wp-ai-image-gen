@@ -30,7 +30,7 @@ class Image_Handler {
 	 * @param string $image_data The raw image data or URL.
 	 * @param string $prompt The prompt used to generate the image.
 	 * @param array  $metadata Core AI result metadata.
-	 * @return array|WP_Error Array containing the uploaded image URL and ID, or WP_Error on failure.
+	 * @return array|\WP_Error Array containing the uploaded image URL and ID, or WP_Error on failure.
 	 */
 	public static function upload_to_media_library( $image_data, $prompt, $metadata = [] ) {
 		require_once ABSPATH . 'wp-admin/includes/file.php';

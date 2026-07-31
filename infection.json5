@@ -1,0 +1,22 @@
+{
+	"$schema": "./tools/infection/vendor/infection/infection/resources/schema.json",
+	"source": {
+		"directories": [ "inc" ],
+		"excludes": [
+			"AGENTS.md",
+			"class-admin.php",
+			"class-image-generation-service.php",
+			"class-image-handler.php",
+			"class-rest-api.php"
+		]
+	},
+	"phpUnit": {
+		"configDir": "."
+	},
+	"mutators": {
+		"@default": true
+	},
+	"logs": {
+		"text": "tests/test-results/infection.log"
+	}
+}

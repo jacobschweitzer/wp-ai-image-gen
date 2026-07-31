@@ -299,7 +299,9 @@ test.describe( 'KaiGen Image Generation', () => {
 		).toBeVisible();
 		await expect(
 			imageBlock.locator( '.kaigen-placeholder-button' )
-		).toBeVisible( { timeout: 10000 } );
+		).toBeVisible( {
+			timeout: 10000,
+		} );
 
 		const kaiGenSettings = await page.evaluate(
 			() =>
@@ -485,6 +487,59 @@ test.describe( 'KaiGen Image Generation', () => {
 			'src',
 			/ai-subject(?:-\d+)?\.png/
 		);
+	} );
+
+	test( '@generation @negative reports a provider failure without changing the image block', async ( {
+		page,
+	} ) => {
+		const consoleErrors: string[] = [];
+		page.on( 'console', ( message ) => {
+			if ( message.type() === 'error' ) {
+				consoleErrors.push( message.text() );
+			}
+		} );
+
+		const editor = createEditorHarness( page );
+		await editor.insertBlock( { name: 'core/image' } );
+
+		const imageBlock = editor.canvas.locator( '[data-type="core/image"]' );
+		await expect( imageBlock ).toBeVisible( { timeout: 10000 } );
+
+		const modal = await openKaiGenModal( page, editor, imageBlock );
+		await modal.getByPlaceholder( 'Type to imagine' ).fill( 'force-error' );
+
+		const responsePromise = page.waitForResponse(
+			( response ) =>
+				response.url().includes( '/kaigen/v1/generate-image' ) &&
+				response.request().method() === 'POST'
+		);
+		await modal
+			.getByRole( 'button', { name: 'Generate Image' } )
+			.click( { force: true } );
+		const response = await responsePromise;
+
+		expect( response.status() ).toBe( 503 );
+		await expect(
+			modal.getByText( 'Deterministic image provider failure.' )
+		).toBeVisible();
+		await expect( modal ).toBeVisible();
+		const imageAttributes = await page.evaluate( () => {
+			const block = ( window as any ).wp.data
+				.select( 'core/block-editor' )
+				.getBlocks()
+				.find( ( candidate ) => candidate.name === 'core/image' );
+
+			return block?.attributes;
+		} );
+		expect( imageAttributes.url || '' ).toBe( '' );
+		expect( Number( imageAttributes.id || 0 ) ).toBe( 0 );
+		const unexpectedConsoleErrors = consoleErrors.filter(
+			( message ) =>
+				! message.includes(
+					'Failed to load resource: the server responded with a status of 503'
+				)
+		);
+		expect( unexpectedConsoleErrors ).toEqual( [] );
 	} );
 
 	test( '@reference persists reference image marking in the image block sidebar', async ( {

@@ -2,20 +2,119 @@
 /* eslint-disable no-console */
 
 const { spawn } = require( 'node:child_process' );
+const fs = require( 'node:fs' );
+const os = require( 'node:os' );
+const path = require( 'node:path' );
 
-const { findAvailablePort } = require( './run-e2e.js' );
+const { findAvailablePort, normalizePort } = require( './run-e2e.js' );
 
 const DEFAULT_PLAYGROUND_BLUEPRINT = '.github/blueprints/e2e-base.json';
 const DEFAULT_PLAYGROUND_PORT = 9400;
 const DEFAULT_PLAYGROUND_WORKERS = '6';
+const DEFAULT_PLAYGROUND_PHP_VERSION = '8.1';
+const DEFAULT_PLAYGROUND_WP_VERSION = 'latest';
+const CONTRACT_PLAYGROUND_WP_VERSION = '7.0';
 const PLAYGROUND_PLUGIN_MOUNT = '.:/wordpress/wp-content/plugins/kaigen';
 
 const resolvePlaygroundBlueprint = ( env = process.env ) =>
 	env.PLAYGROUND_BLUEPRINT || DEFAULT_PLAYGROUND_BLUEPRINT;
 
+const resolvePlaygroundPhpVersion = ( env = process.env ) =>
+	env.PLAYGROUND_PHP_VERSION || DEFAULT_PLAYGROUND_PHP_VERSION;
+
+const resolvePlaygroundWordPressVersion = ( blueprint, env = process.env ) =>
+	env.PLAYGROUND_WP_VERSION ||
+	( blueprint.endsWith( 'e2e-ai-client-contract.json' )
+		? CONTRACT_PLAYGROUND_WP_VERSION
+		: DEFAULT_PLAYGROUND_WP_VERSION );
+
+const applyRuntimeVersions = ( blueprint, phpVersion, wordpressVersion ) => ( {
+	...blueprint,
+	preferredVersions: {
+		...( blueprint.preferredVersions || {} ),
+		php: phpVersion,
+		wp: wordpressVersion,
+	},
+} );
+
+const materializePlaygroundBlueprint = (
+	blueprintPath,
+	phpVersion,
+	wordpressVersion,
+	runIdentifier
+) => {
+	const normalizedIdentifier = String( normalizePort( runIdentifier ) );
+	const sourcePath = path.resolve( blueprintPath );
+	const blueprint = JSON.parse( fs.readFileSync( sourcePath, 'utf8' ) );
+	const temporaryDirectory = path.join(
+		os.tmpdir(),
+		`kaigen-playground-${ normalizedIdentifier }`
+	);
+	fs.rmSync( temporaryDirectory, { recursive: true, force: true } );
+	fs.mkdirSync( temporaryDirectory );
+	const runtimeBlueprintPath = path.join(
+		temporaryDirectory,
+		path.basename( sourcePath )
+	);
+
+	try {
+		fs.writeFileSync(
+			runtimeBlueprintPath,
+			JSON.stringify(
+				applyRuntimeVersions( blueprint, phpVersion, wordpressVersion ),
+				null,
+				2
+			)
+		);
+	} catch ( error ) {
+		fs.rmSync( temporaryDirectory, { recursive: true, force: true } );
+		throw error;
+	}
+
+	return {
+		path: runtimeBlueprintPath,
+		cleanup: () =>
+			fs.rmSync( temporaryDirectory, { recursive: true, force: true } ),
+	};
+};
+
+const registerRuntimeBlueprintCleanup = (
+	cleanup,
+	processObject = process
+) => {
+	let cleaned = false;
+	const cleanupOnce = () => {
+		if ( cleaned ) {
+			return;
+		}
+
+		cleaned = true;
+		cleanup();
+	};
+	const handleInterrupt = () => {
+		cleanupOnce();
+		processObject.exit( 130 );
+	};
+	const handleTermination = () => {
+		cleanupOnce();
+		processObject.exit( 143 );
+	};
+
+	processObject.once( 'exit', cleanupOnce );
+	processObject.once( 'SIGINT', handleInterrupt );
+	processObject.once( 'SIGTERM', handleTermination );
+
+	return () => {
+		processObject.removeListener( 'exit', cleanupOnce );
+		processObject.removeListener( 'SIGINT', handleInterrupt );
+		processObject.removeListener( 'SIGTERM', handleTermination );
+		cleanupOnce();
+	};
+};
+
 const resolveManualPlaygroundPort = async ( env = process.env ) => {
 	if ( env.PLAYGROUND_PORT ) {
-		return env.PLAYGROUND_PORT;
+		return String( normalizePort( env.PLAYGROUND_PORT ) );
 	}
 
 	return String(
@@ -25,7 +124,13 @@ const resolveManualPlaygroundPort = async ( env = process.env ) => {
 	);
 };
 
-const buildPlaygroundServerArgs = ( { port, blueprint, workers } = {} ) => {
+const buildPlaygroundServerArgs = ( {
+	port,
+	blueprint,
+	workers,
+	phpVersion,
+	wordpressVersion,
+} = {} ) => {
 	const args = [
 		'exec',
 		'--prefix',
@@ -41,6 +146,12 @@ const buildPlaygroundServerArgs = ( { port, blueprint, workers } = {} ) => {
 	if ( workers ) {
 		args.push( `--workers=${ workers }` );
 	}
+	if ( phpVersion ) {
+		args.push( `--php=${ phpVersion }` );
+	}
+	if ( wordpressVersion ) {
+		args.push( `--wp=${ wordpressVersion }` );
+	}
 
 	return args;
 };
@@ -48,10 +159,26 @@ const buildPlaygroundServerArgs = ( { port, blueprint, workers } = {} ) => {
 const startPlayground = async ( env = process.env ) => {
 	const port = await resolveManualPlaygroundPort( env );
 	const blueprint = resolvePlaygroundBlueprint( env );
+	const phpVersion = resolvePlaygroundPhpVersion( env );
+	const wordpressVersion = resolvePlaygroundWordPressVersion(
+		blueprint,
+		env
+	);
+	const runtimeBlueprint = materializePlaygroundBlueprint(
+		blueprint,
+		phpVersion,
+		wordpressVersion,
+		port
+	);
+	const disposeRuntimeBlueprint = registerRuntimeBlueprintCleanup(
+		runtimeBlueprint.cleanup
+	);
 	const args = buildPlaygroundServerArgs( {
 		port,
-		blueprint,
+		blueprint: runtimeBlueprint.path,
 		workers: env.PLAYGROUND_WORKERS || DEFAULT_PLAYGROUND_WORKERS,
+		phpVersion,
+		wordpressVersion,
 	} );
 
 	console.log(
@@ -59,13 +186,24 @@ const startPlayground = async ( env = process.env ) => {
 	);
 
 	return new Promise( ( resolve, reject ) => {
-		const child = spawn( 'npm', args, {
-			env,
-			stdio: 'inherit',
-		} );
+		let child;
+		try {
+			child = spawn( 'npm', args, {
+				env,
+				stdio: 'inherit',
+			} );
+		} catch ( error ) {
+			disposeRuntimeBlueprint();
+			reject( error );
+			return;
+		}
 
-		child.once( 'error', reject );
+		child.once( 'error', ( error ) => {
+			disposeRuntimeBlueprint();
+			reject( error );
+		} );
 		child.once( 'exit', ( code, signal ) => {
+			disposeRuntimeBlueprint();
 			if ( signal ) {
 				reject(
 					new Error( `Playground exited with signal ${ signal }.` )
@@ -90,8 +228,12 @@ if ( require.main === module ) {
 }
 
 module.exports = {
+	applyRuntimeVersions,
 	buildPlaygroundServerArgs,
 	resolveManualPlaygroundPort,
 	resolvePlaygroundBlueprint,
+	resolvePlaygroundPhpVersion,
+	resolvePlaygroundWordPressVersion,
+	registerRuntimeBlueprintCleanup,
 	startPlayground,
 };
