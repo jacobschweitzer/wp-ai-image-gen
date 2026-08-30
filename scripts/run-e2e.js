@@ -4,6 +4,8 @@
 const { spawn } = require( 'node:child_process' );
 const net = require( 'node:net' );
 
+const { waitForChild } = require( './child-process.js' );
+
 const DEFAULT_HOST = '127.0.0.1';
 const MAX_SCAN_ATTEMPTS = 100;
 
@@ -151,6 +153,17 @@ const resolvePlaywrightLaunch = (
 			continue;
 		}
 
+		if ( arg.startsWith( '--artifact-name=' ) ) {
+			const artifactName = arg.slice( '--artifact-name='.length );
+
+			if ( ! /^[a-z0-9-]+$/.test( artifactName ) ) {
+				throw new Error( `Invalid artifact name: ${ artifactName }` );
+			}
+
+			launchEnv.PLAYWRIGHT_ARTIFACT_NAME = artifactName;
+			continue;
+		}
+
 		launchArgs.push( arg );
 	}
 
@@ -174,28 +187,16 @@ const runPlaywright = async (
 
 	console.log( `Using WordPress Playground port ${ playgroundPort }.` );
 
-	return new Promise( ( resolve, reject ) => {
-		const child = spawn(
-			process.execPath,
-			[ playwrightCli, 'test', ...launch.args ],
-			{
-				env: childEnv,
-				stdio: 'inherit',
-			}
-		);
+	const child = spawn(
+		process.execPath,
+		[ playwrightCli, 'test', ...launch.args ],
+		{
+			env: childEnv,
+			stdio: 'inherit',
+		}
+	);
 
-		child.once( 'error', reject );
-		child.once( 'exit', ( code, signal ) => {
-			if ( signal ) {
-				reject(
-					new Error( `Playwright exited with signal ${ signal }.` )
-				);
-				return;
-			}
-
-			resolve( code || 0 );
-		} );
-	} );
+	return waitForChild( child );
 };
 
 if ( require.main === module ) {

@@ -1,0 +1,10 @@
+parameters:
+	level: 1
+	paths:
+		- inc
+		- tests/php
+	bootstrapFiles:
+		- tests/php/bootstrap.php
+	excludePaths:
+		analyse:
+			- inc/class-admin.php

@@ -43,7 +43,7 @@ describe( 'prompt refinement API', () => {
 	it( 'uses AI Client text generation and validates model-returned JSON', () => {
 		const service = readFile( 'inc/class-prompt-refinement-service.php' );
 
-		expect( service ).toContain( 'wp_ai_client_prompt(' );
+		expect( service ).toContain( '$this->prompt_factory' );
 		expect( service ).toContain( 'as_json_response' );
 		expect( service ).toContain( 'is_supported_for_text_generation' );
 		expect( service ).toContain( 'generate_text()' );

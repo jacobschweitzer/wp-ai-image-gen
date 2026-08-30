@@ -1,91 +1,284 @@
 <?php
 /**
- * Mocks KaiGen generation endpoints for deterministic E2E tests.
+ * Provides a deterministic AI Client boundary for generation E2E tests.
  *
  * @package KaiGen
  */
 
+/**
+ * Returns the current generation fixture state.
+ *
+ * @return array Generation fixture state.
+ */
+function kaigen_e2e_get_generation_state() {
+	return wp_parse_args(
+		get_option( 'kaigen_e2e_generation_state', [] ),
+		[
+			'request_count'      => 0,
+			'last_payload'       => null,
+			'failure_prompt'     => '',
+			'failures_remaining' => 0,
+			'delay_ms'           => 0,
+		]
+	);
+}
+
+/**
+ * Persists the generation fixture state.
+ *
+ * @param array $state Generation fixture state.
+ * @return void
+ */
+function kaigen_e2e_set_generation_state( $state ) {
+	update_option( 'kaigen_e2e_generation_state', $state, false );
+}
+
+/**
+ * Core-style file result containing deterministic image bytes.
+ */
+final class KaiGen_E2E_Image_File {
+	/**
+	 * Returns a one-pixel PNG.
+	 *
+	 * @return string PNG bytes.
+	 */
+	public function get_data() {
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- Fixed test fixture bytes.
+		return base64_decode( 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=' );
+	}
+}
+
+/**
+ * Core-style generated image result.
+ */
+final class KaiGen_E2E_Image_Result implements JsonSerializable {
+	/**
+	 * Returns the generated file.
+	 *
+	 * @return KaiGen_E2E_Image_File Generated file.
+	 */
+	public function to_file() {
+		return new KaiGen_E2E_Image_File();
+	}
+
+	/**
+	 * Returns deterministic provider metadata.
+	 *
+	 * @return array Result metadata.
+	 */
+	public function jsonSerialize(): array {
+		return [
+			'provider_metadata' => [
+				'provider' => 'e2e-alpha',
+				'model'    => 'e2e-image-model',
+			],
+		];
+	}
+}
+
+/**
+ * Minimal fluent AI Client prompt builder used by the production services.
+ */
+final class KaiGen_E2E_Prompt_Builder {
+	/**
+	 * Records prompt text.
+	 *
+	 * @param string $prompt Prompt text.
+	 * @return self
+	 */
+	public function with_text( $prompt ) {
+		return $this;
+	}
+
+	/**
+	 * Records provider selection.
+	 *
+	 * @param string $provider Provider identifier.
+	 * @return self
+	 */
+	public function using_provider( $provider ) {
+		return $this;
+	}
+
+	/**
+	 * Handles remaining fluent AI Client configuration methods.
+	 *
+	 * @param string $name Method name.
+	 * @param array  $arguments Method arguments.
+	 * @return self
+	 */
+	public function __call( $name, $arguments ) {
+		return $this;
+	}
+
+	/**
+	 * Reports deterministic image support.
+	 *
+	 * @return bool True.
+	 */
+	public function is_supported_for_image_generation() {
+		return true;
+	}
+
+	/**
+	 * Reports deterministic text support.
+	 *
+	 * @return bool True.
+	 */
+	public function is_supported_for_text_generation() {
+		return true;
+	}
+
+	/**
+	 * Produces a controlled image result through the real KaiGen service.
+	 *
+	 * @return KaiGen_E2E_Image_Result|WP_Error Generated result or controlled failure.
+	 */
+	public function generate_image_result() {
+		$payload = $GLOBALS['kaigen_e2e_pending_payload'] ?? [];
+		$prompt  = $payload['prompt'] ?? '';
+		$state   = kaigen_e2e_get_generation_state();
+
+		$state['request_count'] = (int) $state['request_count'] + 1;
+		$state['last_payload']  = $payload;
+
+		if ( $state['delay_ms'] > 0 ) {
+			usleep( (int) $state['delay_ms'] * 1000 );
+		}
+
+		if ( $prompt === $state['failure_prompt'] && $state['failures_remaining'] > 0 ) {
+			$state['failures_remaining'] = (int) $state['failures_remaining'] - 1;
+			kaigen_e2e_set_generation_state( $state );
+
+			return new WP_Error( 'e2e_generation_failed', 'E2E mocked generation failure.', [ 'status' => 500 ] );
+		}
+
+		kaigen_e2e_set_generation_state( $state );
+
+		return new KaiGen_E2E_Image_Result();
+	}
+
+	/**
+	 * Produces controlled refinement JSON through the real KaiGen service.
+	 *
+	 * @return string JSON response.
+	 */
+	public function generate_text() {
+		$request = $GLOBALS['kaigen_e2e_pending_request'] ?? [];
+
+		if ( '/kaigen/v1/apply-prompt-refinement' === ( $request['route'] ?? '' ) ) {
+			return wp_json_encode(
+				[
+					'prompt' => trim( ( $request['prompt'] ?? '' ) . ' ' . ( $request['choice'] ?? '' ) ),
+				]
+			);
+		}
+
+		return wp_json_encode(
+			[
+				'terms' => [
+					[
+						'text'    => 'subject',
+						'choices' => [ 'cinematic subject with controlled lighting' ],
+					],
+				],
+			]
+		);
+	}
+}
+
+/**
+ * Creates the deterministic AI Client prompt builder.
+ *
+ * @return KaiGen_E2E_Prompt_Builder Prompt builder.
+ */
+function kaigen_e2e_prompt_factory() {
+	return new KaiGen_E2E_Prompt_Builder();
+}
+
+add_action(
+	'rest_api_init',
+	function () {
+		register_rest_route(
+			'kaigen-e2e/v1',
+			'/generation-control',
+			[
+				[
+					'methods'             => WP_REST_Server::CREATABLE,
+					'permission_callback' => function () {
+						return current_user_can( 'upload_files' );
+					},
+					'callback'            => function ( $request ) {
+						$state = [
+							'request_count'      => 0,
+							'last_payload'       => null,
+							'failure_prompt'     => sanitize_textarea_field( (string) $request->get_param( 'failure_prompt' ) ),
+							'failures_remaining' => max( 0, absint( $request->get_param( 'failures_remaining' ) ) ),
+							'delay_ms'           => min( 5000, max( 0, absint( $request->get_param( 'delay_ms' ) ) ) ),
+						];
+
+						kaigen_e2e_set_generation_state( $state );
+
+						return rest_ensure_response( $state );
+					},
+				],
+				[
+					'methods'             => WP_REST_Server::READABLE,
+					'permission_callback' => function () {
+						return current_user_can( 'upload_files' );
+					},
+					'callback'            => function () {
+						return rest_ensure_response( kaigen_e2e_get_generation_state() );
+					},
+				],
+			]
+		);
+	}
+);
+
 add_filter(
-	'rest_pre_dispatch',
-	function ( $result, $server, $request ) {
+	'rest_request_before_callbacks',
+	function ( $response, $handler, $request ) {
 		if ( ! defined( 'E2E_TESTING' ) || ! E2E_TESTING ) {
-			return $result;
+			return $response;
 		}
 
-		$route  = $request->get_route();
-		$method = $request->get_method();
-
-		if ( ! in_array( $route, [ '/kaigen/v1/generate-image', '/kaigen/v1/prompt-refinements', '/kaigen/v1/apply-prompt-refinement' ], true ) || 'POST' !== $method ) {
-			return $result;
+		$route = $request->get_route();
+		if ( ! in_array( $route, [ '/kaigen/v1/generate-image', '/kaigen/v1/prompt-refinements', '/kaigen/v1/apply-prompt-refinement' ], true ) ) {
+			return $response;
 		}
 
-		if ( ! current_user_can( 'upload_files' ) ) {
-			return new WP_Error( 'rest_forbidden', 'Sorry, you are not allowed to use this KaiGen E2E fixture.', [ 'status' => rest_authorization_required_code() ] );
-		}
+		$GLOBALS['kaigen_e2e_pending_request'] = [
+			'route'  => $route,
+			'prompt' => sanitize_textarea_field( (string) $request->get_param( 'prompt' ) ),
+			'choice' => sanitize_text_field( (string) $request->get_param( 'choice' ) ),
+		];
 
 		if ( '/kaigen/v1/generate-image' === $route ) {
-			$prompt = sanitize_textarea_field( (string) $request->get_param( 'prompt' ) );
-
-			if ( 'force-error' === $prompt ) {
-				return new WP_Error( 'e2e_generation_failed', 'E2E mocked generation failure.', [ 'status' => 500 ] );
-			}
-
-			require_once ABSPATH . 'wp-admin/includes/image.php';
-			$png    = base64_decode( 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=' );
-			$upload = wp_upload_bits( 'kaigen-generated-e2e.png', null, $png );
-
-			if ( ! empty( $upload['error'] ) ) {
-				return new WP_Error( 'e2e_upload_failed', $upload['error'], [ 'status' => 500 ] );
-			}
-
-			$attachment_id = wp_insert_attachment(
-				[
-					'post_mime_type' => 'image/png',
-					'post_title'     => 'KaiGen generated E2E image',
-					'post_content'   => '',
-					'post_status'    => 'inherit',
-				],
-				$upload['file']
-			);
-
-			if ( is_wp_error( $attachment_id ) ) {
-				return $attachment_id;
-			}
-
-			wp_update_attachment_metadata( $attachment_id, wp_generate_attachment_metadata( $attachment_id, $upload['file'] ) );
-
-			return rest_ensure_response(
-				[
-					'id'       => $attachment_id,
-					'url'      => wp_get_attachment_url( $attachment_id ),
-					'metadata' => [
-						'provider_metadata' => [
-							'provider' => 'e2e-alpha',
-							'model'    => 'e2e-image-model',
-						],
-					],
-				]
-			);
+			$GLOBALS['kaigen_e2e_pending_payload'] = [
+				'prompt'           => sanitize_textarea_field( (string) $request->get_param( 'prompt' ) ),
+				'provider'         => sanitize_text_field( (string) $request->get_param( 'provider' ) ),
+				'orientation'      => sanitize_text_field( (string) $request->get_param( 'orientation' ) ),
+				'source_image_ids' => array_values( array_map( 'absint', (array) $request->get_param( 'source_image_ids' ) ) ),
+			];
 		}
 
-		if ( '/kaigen/v1/prompt-refinements' === $route ) {
-			return rest_ensure_response(
-				[
-					'terms' => [
-						[
-							'text'    => 'subject',
-							'choices' => [ 'cinematic subject with controlled lighting' ],
-						],
-					],
-				]
-			);
-		}
-
-		$prompt = sanitize_textarea_field( (string) $request->get_param( 'prompt' ) );
-		$choice = sanitize_text_field( (string) $request->get_param( 'choice' ) );
-
-		return rest_ensure_response( [ 'prompt' => trim( $prompt . ' ' . $choice ) ] );
+		return $response;
 	},
 	10,
 	3
+);
+
+add_filter(
+	'kaigen_ai_client_available',
+	function ( $available ) {
+		return defined( 'E2E_TESTING' ) && E2E_TESTING ? true : $available;
+	}
+);
+
+add_filter(
+	'kaigen_ai_client_prompt_factory',
+	function ( $factory ) {
+		return defined( 'E2E_TESTING' ) && E2E_TESTING ? 'kaigen_e2e_prompt_factory' : $factory;
+	}
 );

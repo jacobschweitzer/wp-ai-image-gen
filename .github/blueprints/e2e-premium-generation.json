@@ -1,0 +1,46 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"preferredVersions": {
+		"php": "8.1",
+		"wp": "latest"
+	},
+	"features": {
+		"networking": true
+	},
+	"landingPage": "/wp-admin/post-new.php",
+	"steps": [
+		{
+			"step": "runWpInstallationWizard",
+			"options": {
+				"adminUsername": "admin",
+				"adminPassword": "password"
+			}
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php $mu_plugins_dir = '/wordpress/wp-content/mu-plugins'; $fixture_dir = '/wordpress/wp-content/plugins/kaigen/tests/e2e/fixtures/mu-plugins'; if ( ! is_dir( $mu_plugins_dir ) ) { mkdir( $mu_plugins_dir, 0777, true ); } foreach ( [ 'kaigen-e2e-provider.php', 'kaigen-e2e-generation-mock.php', 'kaigen-e2e-reference-media.php' ] as $fixture ) { if ( ! copy( $fixture_dir . '/' . $fixture, $mu_plugins_dir . '/' . $fixture ) ) { throw new Exception( 'Unable to copy E2E fixture: ' . $fixture ); } } $premium_source = '/wordpress/wp-content/plugins/kaigen/premium/kaigen-premium'; $premium_target = '/wordpress/wp-content/plugins/kaigen-premium'; if ( ! is_dir( $premium_target . '/build' ) ) { mkdir( $premium_target . '/build', 0777, true ); } if ( ! is_dir( $premium_target . '/assets' ) ) { mkdir( $premium_target . '/assets', 0777, true ); } foreach ( [ 'kaigen-premium.php', 'build/index.asset.php', 'build/index.js', 'assets/kaigen-premium.css' ] as $file ) { if ( ! copy( $premium_source . '/' . $file, $premium_target . '/' . $file ) ) { throw new Exception( 'Unable to copy premium file: ' . $file ); } }"
+		},
+		{
+			"step": "activatePlugin",
+			"pluginPath": "/wordpress/wp-content/plugins/kaigen"
+		},
+		{
+			"step": "activatePlugin",
+			"pluginPath": "/wordpress/wp-content/plugins/kaigen-premium"
+		},
+		{
+			"step": "defineWpConfigConsts",
+			"consts": {
+				"E2E_TESTING": true,
+				"WP_DEBUG": true,
+				"WP_DEBUG_LOG": true,
+				"WP_DEBUG_DISPLAY": false
+			}
+		},
+		{
+			"step": "login",
+			"username": "admin",
+			"password": "password"
+		}
+	]
+}

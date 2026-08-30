@@ -10,6 +10,7 @@ KaiGen E2E tests use Playwright + WordPress Playground.
 - Fast smoke check after editor UI changes: `npm run test:e2e:smoke`
 - Reference image workflow check: `npm run test:e2e:reference`
 - Mocked generation workflow check: `npm run test:e2e:generation`
+- Premium dual-plugin workflow check: `npm run test:e2e:premium`
 - Run single test file: `npm run test:e2e -- tests/e2e/image-generation.spec.ts`
 - Debug: `npm run test:e2e:debug`
 - UI mode: `npm run test:e2e:ui`
@@ -23,6 +24,7 @@ KaiGen E2E tests use Playwright + WordPress Playground.
 - Default blueprint: `.github/blueprints/e2e-base.json`.
 - Reference media blueprint: `.github/blueprints/e2e-reference-media.json`, provides a `POST /wp-json/kaigen-e2e/v1/reference-media` fixture route for marked/unmarked media.
 - Mocked generation blueprint: `.github/blueprints/e2e-generation-mocked.json`, used for deterministic generation success/error UI coverage.
+- Premium generation blueprint: `.github/blueprints/e2e-premium-generation.json`, activates the base and premium plugins for the Image Agent scenario.
 - Blueprint-specific server behavior lives in `tests/e2e/fixtures/mu-plugins/`; update those PHP fixtures instead of embedding large PHP strings in blueprint JSON.
 - Select a blueprint with `--playground-blueprint=<path>` before normal Playwright args when calling the raw launcher, for example `node scripts/run-e2e.js --playground-blueprint=.github/blueprints/e2e-reference-media.json --grep @reference`.
 - Debug a scenario by appending Playwright args to that scenario script, for example `npm run test:e2e:reference -- --debug`.

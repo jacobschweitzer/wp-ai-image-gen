@@ -1,0 +1,68 @@
+name: Fast Tests and Build Parity
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions: {}
+
+jobs:
+  test:
+    name: Base, Premium, PHP, and Launcher Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          tools: composer
+          coverage: xdebug
+
+      - name: Install npm dependencies
+        run: npm ci --no-audit --fund=false --prefer-offline
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run fast verification
+        run: npm run test:fast
+
+      - name: Run PHP static analysis
+        run: composer phpstan
+
+      - name: Measure JavaScript coverage
+        run: npm run test:coverage
+
+      - name: Measure PHP coverage
+        run: npm run test:php:coverage
+
+      - name: Verify committed builds
+        run: npm run build:check
+
+      - name: Upload coverage reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            coverage/
+            tests/test-results/php-coverage.xml
+          if-no-files-found: warn
+          retention-days: 14

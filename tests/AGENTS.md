@@ -20,6 +20,7 @@ See the root `AGENTS.md` for global conventions and tooling.
 - Fast smoke check: `npm run test:e2e:smoke`
 - Reference image check with the reference-media blueprint: `npm run test:e2e:reference`
 - Mocked generation check: `npm run test:e2e:generation`
+- Premium dual-plugin generation check: `npm run test:e2e:premium`
 - Run single e2e file: `npm run test:e2e -- tests/e2e/image-generation.spec.ts`
 - Debug: `npm run test:e2e:debug`
 - E2E npm scripts choose a free Playground port automatically.

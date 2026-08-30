@@ -127,3 +127,20 @@ test( 'resolvePlaywrightLaunch strips playground workers flags', () => {
 	assert.deepEqual( launch.args, [ '--grep', '@smoke' ] );
 	assert.equal( launch.env.PLAYGROUND_WORKERS, 'auto' );
 } );
+
+test( 'resolvePlaywrightLaunch isolates named artifacts', () => {
+	const launch = resolvePlaywrightLaunch(
+		[ '--artifact-name=generation', '--grep', '@generation' ],
+		{}
+	);
+
+	assert.deepEqual( launch.args, [ '--grep', '@generation' ] );
+	assert.equal( launch.env.PLAYWRIGHT_ARTIFACT_NAME, 'generation' );
+} );
+
+test( 'resolvePlaywrightLaunch rejects unsafe artifact names', () => {
+	assert.throws(
+		() => resolvePlaywrightLaunch( [ '--artifact-name=../shared' ], {} ),
+		/Invalid artifact name/
+	);
+} );

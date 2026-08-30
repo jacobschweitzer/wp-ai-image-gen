@@ -1,0 +1,48 @@
+name: Scheduled PHP Quality
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  mutation:
+    name: Critical PHP Mutation Report
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP quality runtime
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer, infection:0.34.2
+          coverage: xdebug
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run scoped mutation report
+        run: |
+          mkdir -p tests/test-results
+          infection --configuration=infection.json5 --threads=1 --no-interaction --no-ansi
+        env:
+          XDEBUG_MODE: coverage
+
+      - name: Upload mutation reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: infection-reports
+          path: tests/test-results/infection*
+          if-no-files-found: error
+          retention-days: 14

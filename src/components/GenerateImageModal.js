@@ -105,6 +105,7 @@ const GenerateImageModal = ( {
 	const refinementRequestRef = useRef( 0 );
 	const promptRefinementCountRef = useRef( 0 );
 	const shouldRefreshPromptRefinementsRef = useRef( false );
+	const generationInFlightRef = useRef( false );
 
 	const kaiGenSettings = getKaiGenSettings();
 	const availableProviders = kaiGenSettings.providers || [];
@@ -270,10 +271,16 @@ const GenerateImageModal = ( {
 	 * @return {void}
 	 */
 	const handleGenerate = async () => {
+		if ( generationInFlightRef.current ) {
+			return;
+		}
+
 		if ( ! prompt.trim() ) {
 			setError( 'Please enter a prompt for image generation.' );
 			return;
 		}
+
+		generationInFlightRef.current = true;
 		setIsLoading( true );
 		setError( null );
 
@@ -302,6 +309,8 @@ const GenerateImageModal = ( {
 					'An unknown error occurred while generating the image'
 			);
 			setIsLoading( false );
+		} finally {
+			generationInFlightRef.current = false;
 		}
 	};
 

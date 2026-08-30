@@ -15,6 +15,13 @@ const prepareEditor = async ( page: Page ) => {
 			( window as any ).wp?.apiFetch &&
 			( window as any ).wp?.data?.select( 'core/block-editor' )
 	);
+
+	const welcomeDialog = page.getByRole( 'dialog', {
+		name: 'Welcome to the editor',
+	} );
+	if ( await welcomeDialog.isVisible().catch( () => false ) ) {
+		await welcomeDialog.getByRole( 'button', { name: 'Close' } ).click();
+	}
 };
 
 test.describe( 'KaiGen Premium Image Agent', () => {
@@ -28,8 +35,8 @@ test.describe( 'KaiGen Premium Image Agent', () => {
 	} ) => {
 		test.setTimeout( 120000 );
 		test.skip(
-			! ( process.env.PLAYGROUND_BLUEPRINT || '' ).endsWith(
-				'e2e-generation-mocked.json'
+			! /e2e-(?:premium-)?generation(?:-mocked)?\.json$/.test(
+				process.env.PLAYGROUND_BLUEPRINT || ''
 			),
 			'Requires the mocked generation blueprint.'
 		);

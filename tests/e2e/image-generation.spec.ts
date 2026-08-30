@@ -21,7 +21,48 @@ type EditorHarness = {
 	selectBlocks: ( block: Locator ) => Promise< void >;
 };
 
+type GenerationFixtureState = {
+	request_count: number;
+	last_payload: {
+		prompt: string;
+		provider: string;
+		orientation: string;
+		source_image_ids: number[];
+	} | null;
+	failures_remaining: number;
+};
+
 test.describe( 'KaiGen Image Generation', () => {
+	const browserErrors = new WeakMap< Page, string[] >();
+	const isGenerationBlueprint = () =>
+		( process.env.PLAYGROUND_BLUEPRINT || '' ).endsWith(
+			'e2e-generation-mocked.json'
+		);
+	const configureGenerationFixture = async (
+		page: Page,
+		controls: {
+			failure_prompt?: string;
+			failures_remaining?: number;
+			delay_ms?: number;
+		} = {}
+	) =>
+		page.evaluate(
+			async ( fixtureControls ) =>
+				( window as any ).wp.apiFetch( {
+					path: '/kaigen-e2e/v1/generation-control',
+					method: 'POST',
+					data: fixtureControls,
+				} ),
+			controls
+		);
+	const getGenerationFixtureState = async (
+		page: Page
+	): Promise< GenerationFixtureState > =>
+		page.evaluate( async () =>
+			( window as any ).wp.apiFetch( {
+				path: '/kaigen-e2e/v1/generation-control',
+			} )
+		);
 	const createEditorHarness = ( page: Page ): EditorHarness => ( {
 		canvas: page.frameLocator( '[name="editor-canvas"]' ),
 		insertBlock: async ( block ) => {
@@ -70,16 +111,18 @@ test.describe( 'KaiGen Image Generation', () => {
 		page
 			.getByLabel( 'Editor settings' )
 			.getByRole( 'button', { name: 'KaiGen' } );
-	const ensureLoggedIn = async ( page ) => {
-		const response = await page.request.post( '/wp-login.php', {
-			failOnStatusCode: true,
-			form: {
-				log: process.env.WP_USERNAME || 'admin',
-				pwd: process.env.WP_PASSWORD || 'password',
-			},
-			maxRedirects: 0,
+	const ensureLoggedInAs = async (
+		page: Page,
+		username: string,
+		password: string
+	) => {
+		await page.context().clearCookies();
+		await page.goto( '/wp-login.php', {
+			waitUntil: 'domcontentloaded',
 		} );
-		await response.dispose();
+		await page.locator( '#user_login' ).fill( username );
+		await page.locator( '#user_pass' ).fill( password );
+		await page.locator( '#wp-submit' ).click();
 		await page.goto( '/wp-admin/', {
 			waitUntil: 'domcontentloaded',
 		} );
@@ -87,6 +130,12 @@ test.describe( 'KaiGen Image Generation', () => {
 			throw new Error( 'WordPress login failed.' );
 		}
 	};
+	const ensureLoggedIn = async ( page: Page ) =>
+		ensureLoggedInAs(
+			page,
+			process.env.WP_USERNAME || 'admin',
+			process.env.WP_PASSWORD || 'password'
+		);
 	const createNewPost = async ( page: Page ) => {
 		await page.goto( '/wp-admin/post-new.php', {
 			waitUntil: 'domcontentloaded',
@@ -269,6 +318,21 @@ test.describe( 'KaiGen Image Generation', () => {
 
 	test.beforeEach( async ( { page } ) => {
 		test.setTimeout( 60000 );
+		const errors: string[] = [];
+		browserErrors.set( page, errors );
+		page.on( 'pageerror', ( error ) => {
+			errors.push( `pageerror: ${ error.stack || error.message }` );
+		} );
+		page.on( 'console', ( message ) => {
+			if (
+				'error' === message.type() &&
+				/kaigen|GenerateImageModal|addBlockEditFilter/i.test(
+					message.text()
+				)
+			) {
+				errors.push( `console.error: ${ message.text() }` );
+			}
+		} );
 		await ensureLoggedIn( page );
 		await createNewPost( page );
 		if (
@@ -283,6 +347,22 @@ test.describe( 'KaiGen Image Generation', () => {
 		await waitForKaiGenSettings( page );
 		await dismissWelcomeGuide( page );
 		await dismissEditorModals( page );
+		if ( isGenerationBlueprint() ) {
+			await configureGenerationFixture( page );
+		}
+	} );
+
+	test.afterEach( async ( { page }, testInfo ) => {
+		const errors = browserErrors.get( page ) || [];
+
+		if ( errors.length > 0 ) {
+			await testInfo.attach( 'browser-errors', {
+				body: Buffer.from( errors.join( '\n\n' ) ),
+				contentType: 'text/plain',
+			} );
+		}
+
+		expect( errors ).toEqual( [] );
 	} );
 
 	test( '@smoke shows KaiGen on empty image blocks and exposes MVP editor settings', async ( {
@@ -481,9 +561,7 @@ test.describe( 'KaiGen Image Generation', () => {
 		page,
 	} ) => {
 		test.skip(
-			! ( process.env.PLAYGROUND_BLUEPRINT || '' ).endsWith(
-				'e2e-generation-mocked.json'
-			),
+			! isGenerationBlueprint(),
 			'Requires the mocked generation blueprint.'
 		);
 
@@ -510,7 +588,9 @@ test.describe( 'KaiGen Image Generation', () => {
 			{ timeout: 30000 }
 		);
 		await generateButton.click( { force: true } );
-		expect( ( await generationResponsePromise ).ok() ).toBe( true );
+		const generationResponse = await generationResponsePromise;
+		expect( generationResponse.ok() ).toBe( true );
+		const generatedMedia = await generationResponse.json();
 
 		const imageAttributes = await page.evaluate( () => {
 			const imageBlockInEditor = ( window as any ).wp.data
@@ -521,14 +601,294 @@ test.describe( 'KaiGen Image Generation', () => {
 			return imageBlockInEditor?.attributes;
 		} );
 
-		expect( imageAttributes.id ).toBeGreaterThan( 0 );
-		expect( imageAttributes.url ).toMatch(
-			/kaigen-generated-e2e(?:-\d+)?\.png/
+		expect( generatedMedia.id ).toBeGreaterThan( 0 );
+		expect( generatedMedia.url ).toMatch( /ai-subject(?:-\d+)?\.png/ );
+		expect( imageAttributes ).toEqual(
+			expect.objectContaining( {
+				id: generatedMedia.id,
+				url: generatedMedia.url,
+				alt: 'subject',
+			} )
 		);
 		await expect( imageBlock.locator( 'img' ).first() ).toHaveAttribute(
 			'src',
-			/kaigen-generated-e2e(?:-\d+)?\.png/
+			generatedMedia.url
 		);
+
+		const persistedMedia = await page.evaluate(
+			async ( attachmentId ) =>
+				( window as any ).wp.apiFetch( {
+					path: `/wp/v2/media/${ attachmentId }`,
+				} ),
+			generatedMedia.id
+		);
+		expect( persistedMedia ).toEqual(
+			expect.objectContaining( {
+				id: generatedMedia.id,
+				source_url: generatedMedia.url,
+				alt_text: 'subject',
+			} )
+		);
+	} );
+
+	test( '@generation retains the prompt after an error and permits a successful retry', async ( {
+		page,
+	} ) => {
+		test.skip(
+			! isGenerationBlueprint(),
+			'Requires the mocked generation blueprint.'
+		);
+		await configureGenerationFixture( page, {
+			failure_prompt: 'force-error',
+			failures_remaining: 1,
+		} );
+
+		const editor = createEditorHarness( page );
+		await editor.insertBlock( { name: 'core/image' } );
+		const imageBlock = editor.canvas.locator( '[data-type="core/image"]' );
+		await expect( imageBlock ).toBeVisible( { timeout: 10000 } );
+
+		const modal = await openKaiGenModal( page, editor, imageBlock );
+		const promptInput = modal.getByPlaceholder( 'Type to imagine' );
+		const generateButton = modal.getByRole( 'button', {
+			name: 'Generate Image',
+		} );
+		await promptInput.fill( 'force-error' );
+
+		const failedResponse = page.waitForResponse(
+			( response ) =>
+				response.url().includes( '/kaigen/v1/generate-image' ) &&
+				response.request().method() === 'POST'
+		);
+		await generateButton.click();
+		expect( ( await failedResponse ).status() ).toBe( 500 );
+
+		await expect(
+			modal.getByText( 'E2E mocked generation failure.' )
+		).toBeVisible();
+		await expect( modal ).toBeVisible();
+		await expect( promptInput ).toHaveValue( 'force-error' );
+		await expect( generateButton ).toBeEnabled();
+
+		const retryResponse = page.waitForResponse(
+			( response ) =>
+				response.url().includes( '/kaigen/v1/generate-image' ) &&
+				response.request().method() === 'POST'
+		);
+		await generateButton.click();
+		const successfulRetry = await retryResponse;
+		expect( successfulRetry.ok() ).toBe( true );
+		const generatedMedia = await successfulRetry.json();
+		await expect( imageBlock.locator( 'img' ).first() ).toHaveAttribute(
+			'src',
+			generatedMedia.url
+		);
+
+		const fixtureState = await getGenerationFixtureState( page );
+		expect( fixtureState.request_count ).toBe( 2 );
+		expect( fixtureState.failures_remaining ).toBe( 0 );
+	} );
+
+	test( '@generation sends the selected generation payload contract', async ( {
+		page,
+	} ) => {
+		test.skip(
+			! isGenerationBlueprint(),
+			'Requires the mocked generation blueprint.'
+		);
+
+		const fixtureMedia = await page.evaluate( async () =>
+			( window as any ).wp.apiFetch( {
+				path: '/kaigen-e2e/v1/reference-media',
+				method: 'POST',
+			} )
+		);
+		const markedFixture = fixtureMedia.find( ( item ) => item.marked );
+
+		const editor = createEditorHarness( page );
+		await editor.insertBlock( { name: 'core/image' } );
+		const imageBlock = editor.canvas.locator( '[data-type="core/image"]' );
+		await expect( imageBlock ).toBeVisible( { timeout: 10000 } );
+
+		const modal = await openKaiGenModal( page, editor, imageBlock );
+		await modal.getByRole( 'button', { name: 'Reference Images' } ).click();
+		await page
+			.getByRole( 'menuitemcheckbox', {
+				name: 'KaiGen marked reference fixture',
+			} )
+			.click();
+
+		await modal.getByRole( 'button', { name: /^Provider:/ } ).click();
+		await page.getByRole( 'menuitemradio', { name: 'E2E Beta' } ).click();
+		await modal.getByRole( 'button', { name: /^Aspect ratio:/ } ).click();
+		await page
+			.getByRole( 'menuitemradio', { name: /9:16.*Vertical/i } )
+			.click();
+
+		await modal
+			.getByPlaceholder( 'Type to imagine' )
+			.fill( 'contract subject' );
+		const generationResponse = page.waitForResponse(
+			( response ) =>
+				response.url().includes( '/kaigen/v1/generate-image' ) &&
+				response.request().method() === 'POST'
+		);
+		await modal.getByRole( 'button', { name: 'Generate Image' } ).click();
+		expect( ( await generationResponse ).ok() ).toBe( true );
+
+		const fixtureState = await getGenerationFixtureState( page );
+		expect( fixtureState.request_count ).toBe( 1 );
+		expect( fixtureState.last_payload ).toEqual( {
+			prompt: 'contract subject',
+			provider: 'e2e-beta',
+			orientation: 'portrait',
+			source_image_ids: [ markedFixture.id ],
+		} );
+	} );
+
+	test( '@generation sends one request while generation is pending', async ( {
+		page,
+	} ) => {
+		test.skip(
+			! isGenerationBlueprint(),
+			'Requires the mocked generation blueprint.'
+		);
+		await configureGenerationFixture( page, { delay_ms: 1000 } );
+
+		const editor = createEditorHarness( page );
+		await editor.insertBlock( { name: 'core/image' } );
+		const imageBlock = editor.canvas.locator( '[data-type="core/image"]' );
+		await expect( imageBlock ).toBeVisible( { timeout: 10000 } );
+
+		const modal = await openKaiGenModal( page, editor, imageBlock );
+		const promptInput = modal.getByPlaceholder( 'Type to imagine' );
+		const generateButton = modal.getByRole( 'button', {
+			name: 'Generate Image',
+		} );
+		await promptInput.fill( 'single flight subject' );
+
+		const generationResponse = page.waitForResponse(
+			( response ) =>
+				response.url().includes( '/kaigen/v1/generate-image' ) &&
+				response.request().method() === 'POST'
+		);
+		await generateButton.click();
+		await expect( generateButton ).toBeDisabled();
+		await promptInput.press( 'Enter' );
+		await generateButton.click( { force: true } );
+		expect( ( await generationResponse ).ok() ).toBe( true );
+
+		const fixtureState = await getGenerationFixtureState( page );
+		expect( fixtureState.request_count ).toBe( 1 );
+	} );
+
+	test( '@generation keeps keyboard generation and progress state reachable on a narrow viewport', async ( {
+		page,
+	} ) => {
+		test.skip(
+			! isGenerationBlueprint(),
+			'Requires the mocked generation blueprint.'
+		);
+		await page.setViewportSize( { width: 390, height: 844 } );
+		await configureGenerationFixture( page, { delay_ms: 1000 } );
+
+		const editor = createEditorHarness( page );
+		await editor.insertBlock( { name: 'core/image' } );
+		const imageBlock = editor.canvas.locator( '[data-type="core/image"]' );
+		await expect( imageBlock ).toBeVisible( { timeout: 10000 } );
+
+		const modal = await openKaiGenModal( page, editor, imageBlock );
+		const promptInput = modal.getByPlaceholder( 'Type to imagine' );
+		await expect(
+			modal.getByRole( 'button', { name: 'Interactive mode' } )
+		).toBeVisible();
+		await expect(
+			modal.getByRole( 'button', { name: 'Reference Images' } )
+		).toBeVisible();
+		await expect(
+			modal.getByRole( 'button', { name: /^Aspect ratio:/ } )
+		).toBeVisible();
+		await expect(
+			modal.getByRole( 'button', { name: 'Generate Image' } )
+		).toBeVisible();
+
+		await promptInput.fill( 'A keyboard-generated mobile image' );
+		const generationResponse = page.waitForResponse(
+			( response ) =>
+				response.url().includes( '/kaigen/v1/generate-image' ) &&
+				response.request().method() === 'POST'
+		);
+		await promptInput.press( 'Enter' );
+
+		const progress = modal.getByRole( 'progressbar', {
+			name: 'Image generation progress',
+		} );
+		await expect( progress ).toBeVisible();
+		await expect( progress ).toHaveAttribute( 'aria-valuemin', '0' );
+		await expect( progress ).toHaveAttribute( 'aria-valuemax', '100' );
+		expect( ( await generationResponse ).ok() ).toBe( true );
+		await expect( imageBlock.locator( 'img' ).first() ).toBeVisible();
+	} );
+
+	test( '@generation denies image generation to a user who cannot upload media', async ( {
+		page,
+	} ) => {
+		test.skip(
+			! isGenerationBlueprint(),
+			'Requires the mocked generation blueprint.'
+		);
+		const username = `kaigen-viewer-${ Date.now() }`;
+		const password = 'KaiGen-E2E-viewer-59!';
+
+		await page.evaluate(
+			async ( user ) =>
+				( window as any ).wp.apiFetch( {
+					path: '/wp/v2/users',
+					method: 'POST',
+					data: {
+						username: user.username,
+						email: `${ user.username }@example.com`,
+						password: user.password,
+						roles: [ 'subscriber' ],
+					},
+				} ),
+			{ username, password }
+		);
+
+		await ensureLoggedInAs( page, username, password );
+		await page.waitForFunction( () => ( window as any ).wp?.apiFetch );
+		const currentUser = await page.evaluate( async () =>
+			( window as any ).wp.apiFetch( {
+				path: '/wp/v2/users/me?context=edit',
+			} )
+		);
+		expect( currentUser.roles ).toEqual( [ 'subscriber' ] );
+		expect( currentUser.capabilities.upload_files ).not.toBe( true );
+		const denial = await page.evaluate( async () => {
+			try {
+				await ( window as any ).wp.apiFetch( {
+					path: '/kaigen/v1/generate-image',
+					method: 'POST',
+					data: { prompt: 'A forbidden generation request' },
+				} );
+				return { code: 'unexpected_success', status: 200 };
+			} catch ( error ) {
+				return {
+					code: error.code,
+					status: error.data?.status,
+				};
+			}
+		} );
+
+		expect( denial ).toEqual( {
+			code: 'rest_forbidden',
+			status: 403,
+		} );
+
+		await ensureLoggedIn( page );
+		await page.waitForFunction( () => ( window as any ).wp?.apiFetch );
+		const fixtureState = await getGenerationFixtureState( page );
+		expect( fixtureState.request_count ).toBe( 0 );
 	} );
 
 	test( '@reference persists reference image marking in the image block sidebar', async ( {

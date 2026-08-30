@@ -10,12 +10,14 @@ import { defineConfig, devices } from '@playwright/test';
  */
 const playgroundPort = process.env.PLAYGROUND_PORT || '9400';
 const skipWebServer = process.env.PLAYWRIGHT_SKIP_WEBSERVER === '1';
+const artifactName = process.env.PLAYWRIGHT_ARTIFACT_NAME;
+const artifactSuffix = artifactName ? `/${ artifactName }` : '';
 
 export default defineConfig( {
 	testDir: './tests/e2e',
 	testMatch: '**/*.spec.ts',
 	snapshotDir: './tests/__snapshots__',
-	outputDir: './tests/test-results',
+	outputDir: `./tests/test-results${ artifactSuffix }`,
 
 	/* Individual test timeout */
 	timeout: 60_000,
@@ -33,16 +35,27 @@ export default defineConfig( {
 	workers: 1,
 
 	/* Reporter to use. See https://playwright.dev/docs/test-reporters */
-	reporter: process.env.CI ? 'github' : [ [ 'list' ], [ 'html' ] ],
+	reporter: process.env.CI
+		? [
+				[ 'github' ],
+				[
+					'html',
+					{
+						outputFolder: `playwright-report${ artifactSuffix }`,
+						open: 'never',
+					},
+				],
+		  ]
+		: [ [ 'list' ], [ 'html' ] ],
 
 	/* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
 	use: {
 		/* Base URL for WordPress Playground - use 127.0.0.1 to avoid CORS issues */
 		baseURL: `http://127.0.0.1:${ playgroundPort }`,
 
-		/* Disable video and trace recording in CI for performance */
+		/* Retain retry and failure diagnostics without recording every run. */
 		video: process.env.CI ? 'off' : 'on-first-retry',
-		trace: process.env.CI ? 'off' : 'on-first-retry',
+		trace: 'retain-on-failure',
 		screenshot: process.env.CI ? 'only-on-failure' : 'on',
 
 		actionTimeout: 15_000,

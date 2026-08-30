@@ -28,13 +28,40 @@ final class Prompt_Refinement_Service {
 	private const MAX_CHOICES = 3;
 
 	/**
+	 * AI Client prompt factory.
+	 *
+	 * @var callable|null
+	 */
+	private $prompt_factory;
+
+	/**
+	 * AI Client availability check.
+	 *
+	 * @var callable
+	 */
+	private $ai_client_available;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param callable|null $prompt_factory AI Client prompt factory.
+	 * @param callable|null $ai_client_available AI Client availability check.
+	 */
+	public function __construct( $prompt_factory = null, $ai_client_available = null ) {
+		$this->prompt_factory      = $prompt_factory;
+		$this->ai_client_available = $ai_client_available ?? function () {
+			return function_exists( 'wp_ai_client_prompt' );
+		};
+	}
+
+	/**
 	 * Handles a prompt refinement request through the WordPress AI Client.
 	 *
 	 * @param \WP_REST_Request $request The request object.
 	 * @return \WP_REST_Response|WP_Error The response or error.
 	 */
 	public function generate_from_request( $request ) {
-		if ( ! function_exists( 'wp_ai_client_prompt' ) ) {
+		if ( ! apply_filters( 'kaigen_ai_client_available', call_user_func( $this->ai_client_available ) ) ) {
 			return new WP_Error(
 				'ai_client_unavailable',
 				__( 'WordPress AI Client is not available.', 'kaigen' ),
@@ -48,7 +75,7 @@ final class Prompt_Refinement_Service {
 		}
 
 		try {
-			$builder           = wp_ai_client_prompt( $this->build_model_prompt( $prompt ) );
+			$builder           = call_user_func( $this->get_prompt_factory(), $this->build_model_prompt( $prompt ) );
 			$model_preferences = $this->get_fast_text_model_preferences();
 
 			if ( ! empty( $model_preferences ) ) {
@@ -101,7 +128,7 @@ final class Prompt_Refinement_Service {
 	 * @return \WP_REST_Response|WP_Error The response or error.
 	 */
 	public function apply_choice_from_request( $request ) {
-		if ( ! function_exists( 'wp_ai_client_prompt' ) ) {
+		if ( ! apply_filters( 'kaigen_ai_client_available', call_user_func( $this->ai_client_available ) ) ) {
 			return new WP_Error(
 				'ai_client_unavailable',
 				__( 'WordPress AI Client is not available.', 'kaigen' ),
@@ -125,7 +152,8 @@ final class Prompt_Refinement_Service {
 		$term_end   = $request->get_param( 'term_end' );
 
 		try {
-			$builder           = wp_ai_client_prompt(
+			$builder           = call_user_func(
+				$this->get_prompt_factory(),
 				$this->build_application_model_prompt(
 					$prompt,
 					$term,
@@ -182,6 +210,19 @@ final class Prompt_Refinement_Service {
 				[ 'status' => 500 ]
 			);
 		}
+	}
+
+	/**
+	 * Resolves the AI Client prompt factory when the request runs.
+	 *
+	 * @return callable|string Prompt factory callback.
+	 */
+	private function get_prompt_factory() {
+		if ( null !== $this->prompt_factory ) {
+			return $this->prompt_factory;
+		}
+
+		return apply_filters( 'kaigen_ai_client_prompt_factory', 'wp_ai_client_prompt' );
 	}
 
 	/**

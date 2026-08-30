@@ -3,6 +3,7 @@
 
 const { spawn } = require( 'node:child_process' );
 
+const { waitForChild } = require( './child-process.js' );
 const { findAvailablePort } = require( './run-e2e.js' );
 
 const DEFAULT_PLAYGROUND_BLUEPRINT = '.github/blueprints/e2e-base.json';
@@ -53,24 +54,12 @@ const startPlayground = async ( env = process.env ) => {
 		`Starting WordPress Playground on port ${ port } with ${ blueprint }.`
 	);
 
-	return new Promise( ( resolve, reject ) => {
-		const child = spawn( 'npx', args, {
-			env,
-			stdio: 'inherit',
-		} );
-
-		child.once( 'error', reject );
-		child.once( 'exit', ( code, signal ) => {
-			if ( signal ) {
-				reject(
-					new Error( `Playground exited with signal ${ signal }.` )
-				);
-				return;
-			}
-
-			resolve( code || 0 );
-		} );
+	const child = spawn( 'npx', args, {
+		env,
+		stdio: 'inherit',
 	} );
+
+	return waitForChild( child );
 };
 
 if ( require.main === module ) {

@@ -21,13 +21,60 @@ final class Image_Generation_Service {
 	private const IMAGE_GENERATION_TIMEOUT = 180;
 
 	/**
+	 * AI Client prompt factory.
+	 *
+	 * @var callable|null
+	 */
+	private $prompt_factory;
+
+	/**
+	 * Generated image uploader.
+	 *
+	 * @var callable
+	 */
+	private $image_uploader;
+
+	/**
+	 * Retry HTTP options factory.
+	 *
+	 * @var callable
+	 */
+	private $http_options_factory;
+
+	/**
+	 * AI Client availability check.
+	 *
+	 * @var callable
+	 */
+	private $ai_client_available;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param callable|null $prompt_factory AI Client prompt factory.
+	 * @param callable|null $image_uploader Generated image uploader.
+	 * @param callable|null $http_options_factory Retry HTTP options factory.
+	 * @param callable|null $ai_client_available AI Client availability check.
+	 */
+	public function __construct( $prompt_factory = null, $image_uploader = null, $http_options_factory = null, $ai_client_available = null ) {
+		$this->prompt_factory       = $prompt_factory;
+		$this->image_uploader       = $image_uploader ?? [ Image_Handler::class, 'upload_to_media_library' ];
+		$this->http_options_factory = $http_options_factory ?? function ( $timeout ) {
+			return new Image_Generation_HTTP_Options( $timeout );
+		};
+		$this->ai_client_available  = $ai_client_available ?? function () {
+			return function_exists( 'wp_ai_client_prompt' );
+		};
+	}
+
+	/**
 	 * Handles an image generation request through the WordPress AI Client.
 	 *
 	 * @param \WP_REST_Request $request The request object.
 	 * @return \WP_REST_Response|WP_Error The response or error.
 	 */
 	public function generate_from_request( $request ) {
-		if ( ! function_exists( 'wp_ai_client_prompt' ) ) {
+		if ( ! apply_filters( 'kaigen_ai_client_available', call_user_func( $this->ai_client_available ) ) ) {
 			return new WP_Error(
 				'ai_client_unavailable',
 				__( 'WordPress AI Client is not available.', 'kaigen' ),
@@ -65,7 +112,7 @@ final class Image_Generation_Service {
 				return $image_data;
 			}
 
-			$attachment = Image_Handler::upload_to_media_library( $image_data, $prompt, $metadata );
+			$attachment = call_user_func( $this->image_uploader, $image_data, $prompt, $metadata );
 			if ( is_wp_error( $attachment ) ) {
 				return $attachment;
 			}
@@ -119,7 +166,7 @@ final class Image_Generation_Service {
 			return $result;
 		}
 
-		$http_options = new Image_Generation_HTTP_Options( self::IMAGE_GENERATION_TIMEOUT );
+		$http_options = call_user_func( $this->http_options_factory, self::IMAGE_GENERATION_TIMEOUT );
 
 		try {
 			$http_options->register();
@@ -195,7 +242,7 @@ final class Image_Generation_Service {
 	 * @return object Prompt builder.
 	 */
 	private function build_prompt( $prompt, $orientation, $provider ) {
-		$builder = wp_ai_client_prompt()
+		$builder = call_user_func( $this->get_prompt_factory() )
 			->with_text( $prompt );
 
 		$file_type_class = 'WordPress\\AiClient\\Files\\Enums\\FileTypeEnum';
@@ -218,6 +265,19 @@ final class Image_Generation_Service {
 	}
 
 	/**
+	 * Resolves the AI Client prompt factory when the request runs.
+	 *
+	 * @return callable|string Prompt factory callback.
+	 */
+	private function get_prompt_factory() {
+		if ( null !== $this->prompt_factory ) {
+			return $this->prompt_factory;
+		}
+
+		return apply_filters( 'kaigen_ai_client_prompt_factory', 'wp_ai_client_prompt' );
+	}
+
+	/**
 	 * Attaches reference image files to the prompt builder.
 	 *
 	 * @param object $builder Prompt builder.
@@ -232,7 +292,7 @@ final class Image_Generation_Service {
 		foreach ( $source_image_ids as $source_image_id ) {
 			$attachment_id = absint( $source_image_id );
 			if ( ! $attachment_id ) {
-				continue;
+				return new WP_Error( 'invalid_reference_file', __( 'A reference image ID is invalid.', 'kaigen' ), [ 'status' => 400 ] );
 			}
 
 			if ( ! current_user_can( 'edit_post', $attachment_id ) ) {
