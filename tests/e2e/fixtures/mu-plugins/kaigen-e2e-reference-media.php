@@ -10,6 +10,48 @@ add_action(
 	function () {
 		register_rest_route(
 			'kaigen-e2e/v1',
+			'/ai-client-contract',
+			[
+				'methods'             => 'GET',
+				'permission_callback' => '__return_true',
+				'callback'            => function () {
+					global $wp_version;
+
+					$file_type_class  = 'WordPress\\AiClient\\Files\\Enums\\FileTypeEnum';
+					$orientation_class = 'WordPress\\AiClient\\Files\\Enums\\MediaOrientationEnum';
+					$factory_available = is_callable( 'wp_ai_client_prompt' );
+					$symbols_available = class_exists( $file_type_class ) && class_exists( $orientation_class );
+					$request_built     = false;
+					$contract_error    = null;
+
+					if ( $factory_available && $symbols_available ) {
+						try {
+							wp_ai_client_prompt()
+								->with_text( 'KaiGen AI Client contract' )
+								->as_output_file_type( $file_type_class::inline() )
+								->as_output_media_orientation( $orientation_class::from( 'landscape' ) );
+							$request_built = true;
+						} catch ( Throwable $error ) {
+							$contract_error = $error->getMessage();
+						}
+					}
+
+					return rest_ensure_response(
+						[
+							'wordpressVersion' => $wp_version,
+							'phpVersion'       => PHP_VERSION,
+							'factoryAvailable' => $factory_available,
+							'symbolsAvailable' => $symbols_available,
+							'requestBuilt'     => $request_built,
+							'contractError'    => $contract_error,
+						]
+					);
+				},
+			]
+		);
+
+		register_rest_route(
+			'kaigen-e2e/v1',
 			'/reference-media',
 			[
 				'methods'             => 'POST',

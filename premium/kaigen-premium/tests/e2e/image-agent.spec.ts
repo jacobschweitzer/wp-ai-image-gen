@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../../../../tests/e2e/playwright';
 
 const prepareEditor = async ( page: Page ) => {
 	await page.request.post( '/wp-login.php', {

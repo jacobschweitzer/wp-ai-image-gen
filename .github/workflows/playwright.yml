@@ -18,30 +18,36 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       # Set up Node with npm caching
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            tests/e2e/package-lock.json
 
-      # Install dependencies
-      - name: Install dependencies
+      # Install the plugin and isolated E2E runner dependencies.
+      - name: Install plugin dependencies
         run: npm ci --no-audit --fund=false --prefer-offline
+
+      - name: Install E2E dependencies
+        run: npm ci --prefix tests/e2e --no-audit --fund=false --prefer-offline
 
       # Cache Playwright browsers
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-playwright-${{ hashFiles('tests/e2e/package-lock.json') }}
 
       # Install only Chromium browser for speed
       - name: Install Chromium only
-        run: npx playwright install chromium --with-deps
+        run: npm exec --prefix tests/e2e -- playwright install chromium
 
       # Run every deterministic base and premium scenario.
       - name: Run base, reference, mocked generation, and premium E2E tests

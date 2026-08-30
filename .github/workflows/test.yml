@@ -1,4 +1,4 @@
-name: Fast Tests and Build Parity
+name: Tests
 
 on:
   push:
@@ -6,24 +6,23 @@ on:
   pull_request:
     branches: [main, master]
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   test:
-    name: Base, Premium, PHP, and Launcher Tests
+    name: Unit Tests and Build
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -44,25 +43,31 @@ jobs:
       - name: Run fast verification
         run: npm run test:fast
 
-      - name: Run PHP static analysis
-        run: composer phpstan
-
-      - name: Measure JavaScript coverage
+      - name: Run JavaScript unit tests with coverage
         run: npm run test:coverage
 
-      - name: Measure PHP coverage
+      - name: Run PHP unit tests with coverage
+        env:
+          XDEBUG_MODE: coverage
         run: npm run test:php:coverage
 
-      - name: Verify committed builds
+      - name: Run PHP static analysis
+        run: npm run test:php:static
+
+      - name: Enforce PHP complexity ceilings
+        run: npm run test:php:complexity
+
+      - name: Verify committed build assets
         run: npm run build:check
 
       - name: Upload coverage reports
-        if: ${{ !cancelled() }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-reports
+          name: coverage-${{ github.run_id }}
           path: |
             coverage/
+            tests/test-results/php-coverage/
             tests/test-results/php-coverage.xml
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14

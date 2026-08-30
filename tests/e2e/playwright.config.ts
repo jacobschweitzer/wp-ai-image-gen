@@ -4,20 +4,22 @@
  */
 /// <reference types="node" />
 import { defineConfig, devices } from '@playwright/test';
+import { join, resolve } from 'node:path';
 
 /**
  * @see https://playwright.dev/docs/test-configuration
  */
 const playgroundPort = process.env.PLAYGROUND_PORT || '9400';
+const repoRoot = resolve( __dirname, '../..' );
 const skipWebServer = process.env.PLAYWRIGHT_SKIP_WEBSERVER === '1';
 const artifactName = process.env.PLAYWRIGHT_ARTIFACT_NAME;
 const artifactSuffix = artifactName ? `/${ artifactName }` : '';
 
 export default defineConfig( {
-	testDir: './tests/e2e',
+	testDir: '.',
 	testMatch: '**/*.spec.ts',
-	snapshotDir: './tests/__snapshots__',
-	outputDir: `./tests/test-results${ artifactSuffix }`,
+	snapshotDir: '../__snapshots__',
+	outputDir: join( repoRoot, `tests/test-results${ artifactSuffix }` ),
 
 	/* Individual test timeout */
 	timeout: 60_000,
@@ -41,7 +43,10 @@ export default defineConfig( {
 				[
 					'html',
 					{
-						outputFolder: `playwright-report${ artifactSuffix }`,
+						outputFolder: join(
+							repoRoot,
+							`playwright-report${ artifactSuffix }`
+						),
 						open: 'never',
 					},
 				],
@@ -53,7 +58,7 @@ export default defineConfig( {
 		/* Base URL for WordPress Playground - use 127.0.0.1 to avoid CORS issues */
 		baseURL: `http://127.0.0.1:${ playgroundPort }`,
 
-		/* Retain retry and failure diagnostics without recording every run. */
+		/* Retain failure diagnostics without recording every successful run. */
 		video: process.env.CI ? 'off' : 'on-first-retry',
 		trace: 'retain-on-failure',
 		screenshot: process.env.CI ? 'only-on-failure' : 'on',
@@ -90,6 +95,7 @@ export default defineConfig( {
 		? undefined
 		: {
 				command: 'node scripts/playground-server.js',
+				cwd: repoRoot,
 				url: `http://127.0.0.1:${ playgroundPort }`,
 				reuseExistingServer: ! process.env.CI,
 				timeout: 120_000,

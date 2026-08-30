@@ -1,9 +1,10 @@
-import { defineConfig } from '@playwright/test';
+import { resolve } from 'node:path';
 
-import baseConfig from './playwright.config';
+import baseConfig from './tests/e2e/playwright.config';
+import { defineConfig } from './tests/e2e/playwright';
 
 export default defineConfig( {
 	...baseConfig,
-	testDir: './premium/kaigen-premium/tests/e2e',
+	testDir: resolve( __dirname, 'premium/kaigen-premium/tests/e2e' ),
 	testMatch: '**/*.spec.ts',
 } );

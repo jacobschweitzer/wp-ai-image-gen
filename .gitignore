@@ -7,6 +7,7 @@ yarn-error.log*
 
 # Coverage directory used by tools like istanbul
 coverage
+/.stryker-tmp/
 
 # Compiled binary addons (https://nodejs.org/api/addons.html)
 build/Release
@@ -41,6 +42,7 @@ build/index.js.map
 
 # Playwright report directory
 /playwright-report/
+/playwright/.auth/
 
 # Playwright cache directory
 /playwright/.cache/
