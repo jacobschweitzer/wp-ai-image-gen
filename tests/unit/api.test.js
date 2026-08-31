@@ -222,6 +222,12 @@ describe( 'fetchPromptRefinements', () => {
 
 		expect( apiFetch ).not.toHaveBeenCalled();
 	} );
+
+	it( 'ignores non-string prompts without making a request', async () => {
+		await expect( fetchPromptRefinements( null ) ).resolves.toEqual( [] );
+
+		expect( apiFetch ).not.toHaveBeenCalled();
+	} );
 } );
 
 describe( 'applyPromptRefinement', () => {

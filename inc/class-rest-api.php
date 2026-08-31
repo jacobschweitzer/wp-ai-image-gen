@@ -224,7 +224,7 @@ final class Rest_API {
 	 * Handles a prompt refinement request through the WordPress AI Client.
 	 *
 	 * @param \WP_REST_Request $request The request object.
-	 * @return \WP_REST_Response|WP_Error The response or error.
+	 * @return \WP_REST_Response|\WP_Error The response or error.
 	 */
 	public function handle_prompt_refinements_request( $request ) {
 		return $this->prompt_refinement_service->generate_from_request( $request );
@@ -234,7 +234,7 @@ final class Rest_API {
 	 * Handles a prompt refinement application request through the WordPress AI Client.
 	 *
 	 * @param \WP_REST_Request $request The request object.
-	 * @return \WP_REST_Response|WP_Error The response or error.
+	 * @return \WP_REST_Response|\WP_Error The response or error.
 	 */
 	public function handle_apply_prompt_refinement_request( $request ) {
 		return $this->prompt_refinement_service->apply_choice_from_request( $request );
