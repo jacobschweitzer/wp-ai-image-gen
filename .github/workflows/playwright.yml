@@ -25,11 +25,16 @@ jobs:
       # Set up Node with npm caching
       - uses: actions/setup-node@v7
         with:
-          node-version: lts/*
+          node-version: 22
           cache: npm
-          cache-dependency-path: tests/e2e/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            tests/e2e/package-lock.json
 
-      # Install only the dependencies required to run the E2E suite
+      # Install the plugin and isolated E2E runner dependencies.
+      - name: Install plugin dependencies
+        run: npm ci --no-audit --fund=false --prefer-offline
+
       - name: Install E2E dependencies
         run: npm ci --prefix tests/e2e --no-audit --fund=false --prefer-offline
 
@@ -44,14 +49,16 @@ jobs:
       - name: Install Chromium only
         run: npm exec --prefix tests/e2e -- playwright install chromium
 
-      # Run E2E tests (Playwright starts WordPress Playground automatically via webServer config)
-      - name: Run E2E tests
-        run: npm run test:e2e
+      # Run every deterministic base-plugin scenario.
+      - name: Run base, reference, mocked generation, and AI Client contract E2E tests
+        run: npm run test:e2e:ci
 
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
           name: playwright-report-${{ github.run_id }}
-          path: playwright-report/
+          path: |
+            playwright-report/
+            tests/test-results/
           if-no-files-found: ignore
           retention-days: 30

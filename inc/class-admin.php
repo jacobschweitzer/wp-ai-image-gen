@@ -180,7 +180,7 @@ class Admin {
 		$form_fields['kaigen_reference_image'] = [
 			'label' => __( 'Reference Image', 'kaigen' ),
 			'input' => 'html',
-			'html'  => '<input type="checkbox" name="attachments[' . esc_attr( $post->ID ) . '][kaigen_reference_image]" value="1"' . checked( $value, true, false ) . '/>',
+			'html'  => '<input type="checkbox" name="attachments[' . esc_attr( (string) $post->ID ) . '][kaigen_reference_image]" value="1"' . checked( $value, true, false ) . '/>',
 		];
 
 		return $form_fields;

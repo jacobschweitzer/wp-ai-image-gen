@@ -42,7 +42,7 @@ jobs:
         if: steps.changes.outputs.js == 'true' || steps.changes.outputs.css == 'true' || steps.changes.outputs.php == 'true'
         uses: actions/setup-node@v7
         with:
-          node-version: lts/*
+          node-version: 22
           cache: npm
 
       - name: Set up PHP

@@ -3,6 +3,7 @@ const wpScriptsConfig = require( '@wordpress/scripts/config/eslint.config.cjs' )
 module.exports = [
 	{
 		ignores: [
+			'**/.stryker-tmp/**',
 			'**/playwright-report/**',
 			'**/blob-report/**',
 			'**/tests/test-results/**',

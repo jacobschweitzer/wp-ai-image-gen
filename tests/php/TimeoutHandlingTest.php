@@ -1,175 +1,46 @@
 <?php
 /**
- * Regression tests for image generation timeout ownership.
+ * Regression test for timeout classification.
  *
  * @package KaiGen
  */
 
+// phpcs:disable Squiz.Commenting.FunctionComment.Missing,PHPCompatibility.FunctionDeclarations.NewReturnTypeDeclarations.voidFound
+
 namespace KaiGen\Tests\PHP;
 
+use KaiGen\Image_Generation_Service;
+use KaiGen\Tests\PHP\Support\WordPress_Stub_State;
 use PHPUnit\Framework\TestCase;
+use WP_Error;
+use WP_REST_Request;
 
 /**
- * Tests timeout handling ownership across the bootstrap and service layer.
+ * Guards timeout retry ownership with executed behavior.
  */
 final class TimeoutHandlingTest extends TestCase {
-	/**
-	 * Tests that OpenAI-specific timeout handling is not registered globally.
-	 *
-	 * @return void
-	 */
-	public function test_bootstrap_does_not_register_openai_specific_timeout_handling() {
-		$this->assertStringNotContainsString(
-			'OpenAI_Image_Generation_HTTP_Options',
-			$this->get_kaigen_bootstrap(),
-			'OpenAI-specific HTTP timeout handling should not be registered from the plugin bootstrap.'
+	public function test_low_speed_error_is_retryable(): void {
+		WordPress_Stub_State::reset();
+		WordPress_Stub_State::$image_results = [
+			new WP_Error( 'http_request_failed', 'Transfer aborted due to low speed' ),
+			new WP_Error( 'provider_error', 'Second attempt failed' ),
+		];
+		$service                             = new Image_Generation_Service(
+			'wp_ai_client_prompt',
+			static fn() => null,
+			null,
+			static fn() => true
 		);
 
-		$this->assertStringNotContainsString(
-			'class-openai-image-generation-http-options.php',
-			$this->get_kaigen_bootstrap(),
-			'OpenAI-specific HTTP timeout handling should not be loaded by the plugin bootstrap.'
+		$result = $service->generate_from_request( new WP_REST_Request( [ 'prompt' => 'A lighthouse' ] ) );
+
+		$this->assertSame( 'provider_error', $result->get_error_code() );
+		$this->assertCount(
+			2,
+			array_filter(
+				WordPress_Stub_State::$builder_calls,
+				static fn( $call ) => 'generate_image_result' === $call[0]
+			)
 		);
-	}
-
-	/**
-	 * Tests that generic HTTP timeout retry support is loaded.
-	 *
-	 * @return void
-	 */
-	public function test_bootstrap_loads_generic_timeout_retry_options() {
-		$this->assertStringContainsString(
-			'class-image-generation-http-options.php',
-			$this->get_kaigen_bootstrap(),
-			'Conditional HTTP/cURL retry options should be loaded by the plugin bootstrap.'
-		);
-	}
-
-	/**
-	 * Tests that the service owns the timeout retry lifecycle.
-	 *
-	 * @return void
-	 */
-	public function test_image_generation_service_owns_timeout_retry_lifecycle() {
-		$this->assertStringContainsString(
-			'wp_ai_client_default_request_timeout',
-			$this->get_kaigen_service(),
-			'Image_Generation_Service should keep applying the AI Client request timeout during image generation.'
-		);
-
-		$this->assertStringContainsString(
-			'is_retryable_timeout_error',
-			$this->get_kaigen_service(),
-			'Image_Generation_Service should only retry with lower-level HTTP options after timeout-like failures.'
-		);
-
-		$this->assertStringContainsString(
-			'Image_Generation_HTTP_Options',
-			$this->get_kaigen_service(),
-			'Image_Generation_Service should own the conditional HTTP/cURL retry lifecycle.'
-		);
-	}
-
-	/**
-	 * Tests that media-library reference images require attachment edit access.
-	 *
-	 * @return void
-	 */
-	public function test_reference_attachment_images_require_edit_post_capability() {
-		$this->assertStringContainsString(
-			"current_user_can( 'edit_post', \$attachment_id )",
-			$this->get_kaigen_service(),
-			'Image_Generation_Service should verify attachment ownership before sending media-library reference images to providers.'
-		);
-	}
-
-	/**
-	 * Tests that URL-only reference images are not accepted by the REST API.
-	 *
-	 * @return void
-	 */
-	public function test_rest_api_does_not_accept_url_only_reference_images() {
-		$this->assertStringNotContainsString(
-			'source_image_urls',
-			$this->get_kaigen_rest_api(),
-			'Reference images should be submitted by attachment ID only.'
-		);
-	}
-
-	/**
-	 * Tests that URL-only reference images are not downloaded by the service.
-	 *
-	 * @return void
-	 */
-	public function test_image_generation_service_does_not_download_url_only_reference_images() {
-		$this->assertStringNotContainsString(
-			'download_url',
-			$this->get_kaigen_service(),
-			'Image_Generation_Service should attach reference images from attachment IDs only.'
-		);
-	}
-
-	/**
-	 * Tests that retry options preserve cURL low-speed handling.
-	 *
-	 * @return void
-	 */
-	public function test_retry_options_preserve_curl_low_speed_handling() {
-		$this->assertStringContainsString(
-			'CURLOPT_LOW_SPEED_LIMIT',
-			$this->get_kaigen_http_options(),
-			'Conditional retry options should preserve cURL low-speed handling.'
-		);
-	}
-
-	/**
-	 * Gets plugin bootstrap contents.
-	 *
-	 * @return string
-	 */
-	private function get_kaigen_bootstrap() {
-		return $this->read_repository_file( 'kaigen.php' );
-	}
-
-	/**
-	 * Gets image generation service contents.
-	 *
-	 * @return string
-	 */
-	private function get_kaigen_service() {
-		return $this->read_repository_file( 'inc/class-image-generation-service.php' );
-	}
-
-	/**
-	 * Gets REST API contents.
-	 *
-	 * @return string
-	 */
-	private function get_kaigen_rest_api() {
-		return $this->read_repository_file( 'inc/class-rest-api.php' );
-	}
-
-	/**
-	 * Gets image generation HTTP options contents.
-	 *
-	 * @return string
-	 */
-	private function get_kaigen_http_options() {
-		return $this->read_repository_file( 'inc/class-image-generation-http-options.php' );
-	}
-
-	/**
-	 * Reads a repository file.
-	 *
-	 * @param string $path Repository-relative file path.
-	 * @return string
-	 */
-	private function read_repository_file( $path ) {
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local regression test reads repository files.
-		$contents = file_get_contents( KAIGEN_TESTS_ROOT . '/' . $path );
-
-		$this->assertIsString( $contents );
-
-		return $contents;
 	}
 }

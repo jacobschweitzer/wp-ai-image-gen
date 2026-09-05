@@ -1,0 +1,23 @@
+{
+	// Infection is intentionally installed only on the PHP 8.3 quality runner.
+	// Keeping it out of Composer preserves the plugin's supported PHP 8.1 install.
+	source: {
+		directories: ["inc"],
+		excludes: ["AGENTS.md", "class-admin.php", "class-image-handler.php"],
+	},
+	testFramework: "phpunit",
+	phpUnit: {
+		configDir: ".",
+	},
+	mutators: {
+		"@default": true,
+	},
+	logs: {
+		text: "tests/test-results/infection.log",
+		summary: "tests/test-results/infection-summary.log",
+		json: "tests/test-results/infection.json",
+	},
+	// Observed with Infection 0.34.2 on PHP 8.3. Ratchet upward only.
+	minMsi: 53,
+	minCoveredMsi: 53,
+}

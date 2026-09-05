@@ -10,15 +10,16 @@ import { join, resolve } from 'node:path';
  * @see https://playwright.dev/docs/test-configuration
  */
 const playgroundPort = process.env.PLAYGROUND_PORT || '9400';
-const playgroundWorkers = process.env.PLAYGROUND_WORKERS || '6';
 const repoRoot = resolve( __dirname, '../..' );
 const skipWebServer = process.env.PLAYWRIGHT_SKIP_WEBSERVER === '1';
+const artifactName = process.env.PLAYWRIGHT_ARTIFACT_NAME;
+const artifactSuffix = artifactName ? `/${ artifactName }` : '';
 
 export default defineConfig( {
 	testDir: '.',
 	testMatch: '**/*.spec.ts',
 	snapshotDir: '../__snapshots__',
-	outputDir: '../test-results',
+	outputDir: join( repoRoot, `tests/test-results${ artifactSuffix }` ),
 
 	/* Individual test timeout */
 	timeout: 60_000,
@@ -37,23 +38,29 @@ export default defineConfig( {
 
 	/* Reporter to use. See https://playwright.dev/docs/test-reporters */
 	reporter: process.env.CI
-		? 'github'
-		: [
-				[ 'list' ],
+		? [
+				[ 'github' ],
 				[
 					'html',
-					{ outputFolder: join( repoRoot, 'playwright-report' ) },
+					{
+						outputFolder: join(
+							repoRoot,
+							`playwright-report${ artifactSuffix }`
+						),
+						open: 'never',
+					},
 				],
-		  ],
+		  ]
+		: [ [ 'list' ], [ 'html' ] ],
 
 	/* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
 	use: {
 		/* Base URL for WordPress Playground - use 127.0.0.1 to avoid CORS issues */
 		baseURL: `http://127.0.0.1:${ playgroundPort }`,
 
-		/* Disable video and trace recording in CI for performance */
+		/* Retain failure diagnostics without recording every successful run. */
 		video: process.env.CI ? 'off' : 'on-first-retry',
-		trace: process.env.CI ? 'off' : 'on-first-retry',
+		trace: 'retain-on-failure',
 		screenshot: process.env.CI ? 'only-on-failure' : 'on',
 
 		actionTimeout: 15_000,
@@ -87,7 +94,7 @@ export default defineConfig( {
 	webServer: skipWebServer
 		? undefined
 		: {
-				command: `npm exec --prefix tests/e2e -- wp-playground-cli server --mount=.:/wordpress/wp-content/plugins/kaigen --blueprint=.github/blueprints/e2e-test.json --port=${ playgroundPort } --workers=${ playgroundWorkers }`,
+				command: 'node scripts/playground-server.js',
 				cwd: repoRoot,
 				url: `http://127.0.0.1:${ playgroundPort }`,
 				reuseExistingServer: ! process.env.CI,
