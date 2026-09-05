@@ -1,6 +1,9 @@
 const assert = require( 'node:assert/strict' );
+const fs = require( 'node:fs' );
 const net = require( 'node:net' );
 const test = require( 'node:test' );
+const os = require( 'node:os' );
+const path = require( 'node:path' );
 
 const {
 	findAvailablePort,
@@ -10,6 +13,7 @@ const {
 } = require( './run-e2e.js' );
 const {
 	applyRuntimeVersions,
+	materializePlaygroundBlueprint,
 	buildPlaygroundServerArgs,
 	resolvePlaygroundBlueprint,
 	resolvePlaygroundPhpVersion,
@@ -36,14 +40,15 @@ const closeServer = async ( server ) =>
 	} );
 
 test( 'findAvailablePort skips a busy preferred port', async () => {
-	const busyServer = await listenOnPort( 9400 );
+	const busyServer = await listenOnPort( 0 );
+	const busyPort = busyServer.address().port;
 
 	try {
-		const port = await findAvailablePort( { preferredPort: 9400 } );
+		const port = await findAvailablePort( { preferredPort: busyPort } );
 
-		assert.notEqual( port, 9400 );
+		assert.notEqual( port, busyPort );
 		assert.equal( Number.isInteger( port ), true );
-		assert.equal( port > 9400, true );
+		assert.equal( port > busyPort, true );
 	} finally {
 		await closeServer( busyServer );
 	}
@@ -65,18 +70,12 @@ test( 'resolvePlaygroundPort canonicalizes an explicit port', async () => {
 	assert.equal( port, '9417' );
 } );
 
-test( 'resolveManualPlaygroundPort skips a busy default port', async () => {
-	const busyServer = await listenOnPort( 9400 );
-
-	try {
-		const port = await resolveManualPlaygroundPort( {} );
-
-		assert.notEqual( port, '9400' );
-		assert.equal( Number.isInteger( Number( port ) ), true );
-		assert.equal( Number( port ) > 9400, true );
-	} finally {
-		await closeServer( busyServer );
-	}
+test( 'resolveManualPlaygroundPort selects an available port at or above the default', async () => {
+	const port = Number( await resolveManualPlaygroundPort( {} ) );
+	assert.equal( Number.isInteger( port ), true );
+	assert.ok( port >= 9400 );
+	const server = await listenOnPort( port );
+	await closeServer( server );
 } );
 
 test( 'resolveManualPlaygroundPort rejects path-like ports', async () => {
@@ -239,4 +238,36 @@ test( 'resolvePlaywrightArgs preserves a short explicit config', () => {
 	const args = [ '-c=custom.config.ts', '--project=chromium' ];
 
 	assert.deepEqual( resolvePlaywrightArgs( args ), args );
+} );
+
+test( 'runtime blueprints clean up independently', ( t ) => {
+	const sourceDirectory = fs.mkdtempSync(
+		path.join( os.tmpdir(), 'kaigen-blueprint-test-' )
+	);
+	t.after( () =>
+		fs.rmSync( sourceDirectory, { recursive: true, force: true } )
+	);
+	const sourcePath = path.join( sourceDirectory, 'blueprint.json' );
+	fs.writeFileSync( sourcePath, JSON.stringify( { steps: [] } ) );
+	const first = materializePlaygroundBlueprint(
+		sourcePath,
+		'8.1',
+		'7.0',
+		'9417'
+	);
+	t.after( first.cleanup );
+	const second = materializePlaygroundBlueprint(
+		sourcePath,
+		'7.4',
+		'7.0',
+		'9418'
+	);
+	t.after( second.cleanup );
+	assert.notEqual( first.path, second.path );
+	assert.deepEqual(
+		JSON.parse( fs.readFileSync( first.path, 'utf8' ) ).preferredVersions,
+		{ php: '8.1', wp: '7.0' }
+	);
+	first.cleanup();
+	assert.equal( fs.existsSync( second.path ), true );
 } );

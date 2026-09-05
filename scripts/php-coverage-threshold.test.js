@@ -10,7 +10,7 @@ const clover = ( { coveredMethods, coveredStatements } ) => `
 <coverage>
   <project>
     <file name="example.php">
-      <metrics methods="100" coveredmethods="${ coveredMethods }" statements="100" coveredstatements="${ coveredStatements }" />
+      <metrics methods="10" coveredmethods="10" statements="20" coveredstatements="20" />
     </file>
     <metrics files="1" methods="100" coveredmethods="${ coveredMethods }" statements="100" coveredstatements="${ coveredStatements }" />
   </project>

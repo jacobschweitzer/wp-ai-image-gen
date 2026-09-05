@@ -175,6 +175,7 @@ if ( require.main === module ) {
 module.exports = {
 	applyRuntimeVersions,
 	buildPlaygroundServerArgs,
+	materializePlaygroundBlueprint,
 	resolveManualPlaygroundPort,
 	resolvePlaygroundBlueprint,
 	resolvePlaygroundPhpVersion,

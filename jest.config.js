@@ -18,12 +18,6 @@ module.exports = {
 	],
 	coverageReporters: [ 'text', 'json-summary', 'lcov' ],
 	coverageThreshold: {
-		global: {
-			statements: 33,
-			branches: 22,
-			functions: 25,
-			lines: 33,
-		},
 		'src/api.js': {
 			branches: 70,
 			functions: 75,

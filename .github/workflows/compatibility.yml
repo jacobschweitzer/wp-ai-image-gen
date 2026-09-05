@@ -52,6 +52,16 @@ jobs:
           PLAYGROUND_PHP_VERSION: "7.4"
         run: npm run test:e2e:contract
 
+      - name: Upload minimum-runtime diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-minimum-${{ github.run_id }}
+          path: |
+            playwright-report/
+            tests/test-results/
+          if-no-files-found: ignore
+
   rolling-runtime:
     name: ${{ matrix.label }}
     if: github.event_name != 'pull_request'
@@ -99,3 +109,13 @@ jobs:
           PLAYGROUND_WP_VERSION: ${{ matrix.wordpress }}
           PLAYGROUND_PHP_VERSION: ${{ matrix.php }}
         run: npm run test:e2e:contract
+
+      - name: Upload rolling-runtime diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-${{ matrix.wordpress }}-${{ matrix.php }}-${{ github.run_id }}
+          path: |
+            playwright-report/
+            tests/test-results/
+          if-no-files-found: ignore

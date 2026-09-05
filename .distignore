@@ -8,6 +8,8 @@
 /playwright-report
 /artifacts
 /tools
+/scripts
+/docs
 
 # Development files
 package.json

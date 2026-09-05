@@ -28,12 +28,7 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: |
-            package-lock.json
             tests/e2e/package-lock.json
-
-      # Install the plugin and isolated E2E runner dependencies.
-      - name: Install plugin dependencies
-        run: npm ci --no-audit --fund=false --prefer-offline
 
       - name: Install E2E dependencies
         run: npm ci --prefix tests/e2e --no-audit --fund=false --prefer-offline

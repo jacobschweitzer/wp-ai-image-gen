@@ -3,6 +3,7 @@ includes:
 
 parameters:
 	level: 5
+	tmpDir: tests/test-results/phpstan
 	paths:
 		- kaigen.php
 		- inc

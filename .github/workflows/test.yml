@@ -40,8 +40,8 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist
 
-      - name: Run fast verification
-        run: npm run test:fast
+      - name: Run infrastructure verification
+        run: npm run test:e2e:launcher && npm run test:build-parity && npm run test:php:coverage-threshold
 
       - name: Run JavaScript unit tests with coverage
         run: npm run test:coverage
