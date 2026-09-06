@@ -22,6 +22,18 @@ describe( 'isKaiGenAvailable', () => {
 		select.mockReset();
 	} );
 
+	it( 'reads KaiGen settings from the core editor store', () => {
+		const settings = { is_ai_client_available: true };
+		setKaiGenSettings( settings );
+		expect( getKaiGenSettings() ).toEqual( settings );
+		expect( select ).toHaveBeenCalledWith( 'core/editor' );
+	} );
+
+	it( 'returns false when the provider list is absent', () => {
+		setKaiGenSettings( { is_ai_client_available: true } );
+		expect( isKaiGenAvailable() ).toBe( false );
+	} );
+
 	it( 'returns false when the AI client exists but no image providers are available', () => {
 		setKaiGenSettings( {
 			is_ai_client_available: true,

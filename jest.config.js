@@ -19,16 +19,16 @@ module.exports = {
 	coverageReporters: [ 'text', 'json-summary', 'lcov' ],
 	coverageThreshold: {
 		'src/api.js': {
-			branches: 70,
-			functions: 75,
-			lines: 77,
-			statements: 77,
+			branches: 100,
+			functions: 100,
+			lines: 100,
+			statements: 100,
 		},
 		'src/components/GenerateImageModal.js': {
-			branches: 35,
-			functions: 40,
-			lines: 52,
-			statements: 53,
+			branches: 80,
+			functions: 90,
+			lines: 90,
+			statements: 90,
 		},
 		'src/filters/mediaUtils.js': {
 			branches: 94,
@@ -43,7 +43,7 @@ module.exports = {
 			statements: 100,
 		},
 		'src/utils/kaigenSettings.js': {
-			branches: 87,
+			branches: 100,
 			functions: 100,
 			lines: 100,
 			statements: 100,

@@ -91,9 +91,9 @@ describe( 'generateImage', () => {
 		expect( media ).not.toHaveProperty( 'id' );
 	} );
 
-	it( 'omits malformed reference IDs and invalid media IDs', async () => {
+	it.each( [ '123', -1, 0 ] )( 'omits invalid media ID %p', async ( id ) => {
 		apiFetch.mockResolvedValue( {
-			id: '123',
+			id,
 			url: 'https://example.com/generated-image.jpg',
 		} );
 
@@ -111,20 +111,43 @@ describe( 'generateImage', () => {
 		expect( media ).not.toHaveProperty( 'id' );
 	} );
 
-	it( 'normalizes rejected and structured API errors', async () => {
+	it( 'preserves a rejected API error message', async () => {
 		apiFetch.mockRejectedValueOnce( { message: 'Provider unavailable' } );
 		await expect( generateImage( 'Failure' ) ).rejects.toThrow(
 			'Provider unavailable'
 		);
+	} );
 
+	it( 'preserves a structured API error message exactly', async () => {
 		apiFetch.mockResolvedValueOnce( {
 			code: 'generation_failed',
 			message: 'Generation failed',
 		} );
-		await expect( generateImage( 'Failure' ) ).rejects.toThrow(
-			'Generation failed'
+		await expect( generateImage( 'Failure' ) ).rejects.toEqual(
+			new Error( 'Generation failed' )
 		);
 	} );
+
+	it( 'provides a fallback when a rejected API error has no message', async () => {
+		apiFetch.mockRejectedValue( {} );
+		await expect( generateImage( 'Failure' ) ).rejects.toEqual(
+			new Error( 'An unknown error occurred while generating the image' )
+		);
+	} );
+
+	it.each( [ { code: 'metadata' }, { message: 'metadata' } ] )(
+		'accepts media with incomplete error metadata %p',
+		async ( metadata ) => {
+			const url = 'https://example.com/generated-image.jpg';
+			apiFetch.mockResolvedValue( { ...metadata, url } );
+			await expect( generateImage( 'A lighthouse' ) ).resolves.toEqual( {
+				url,
+				alt: 'A lighthouse',
+				caption: '',
+				metadata: null,
+			} );
+		}
+	);
 
 	it( 'throws when the server response does not include an image URL', async () => {
 		apiFetch.mockResolvedValue( {

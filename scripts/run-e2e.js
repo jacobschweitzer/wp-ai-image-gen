@@ -134,7 +134,7 @@ const resolvePlaywrightLaunch = (
 					? args[ index + 1 ]
 					: arg.slice( separatorIndex + 1 );
 
-			if ( separatorIndex === -1 && ! value ) {
+			if ( ! value || value.startsWith( '-' ) ) {
 				throw new Error( `${ option } requires a value.` );
 			}
 			if (
@@ -180,13 +180,18 @@ const resolvePlaywrightArgs = ( args ) => {
 
 const runPlaywright = async (
 	args = process.argv.slice( 2 ),
-	env = process.env
+	env = process.env,
+	{
+		spawnChild = spawn,
+		resolveCli = () =>
+			require.resolve( '@playwright/test/cli', {
+				paths: [ E2E_PACKAGE_DIR ],
+			} ),
+	} = {}
 ) => {
 	const launch = resolvePlaywrightLaunch( args, env );
 	const playgroundPort = await resolvePlaygroundPort( launch.env );
-	const playwrightCli = require.resolve( '@playwright/test/cli', {
-		paths: [ E2E_PACKAGE_DIR ],
-	} );
+	const playwrightCli = resolveCli();
 	const playwrightArgs = resolvePlaywrightArgs( launch.args );
 	const childEnv = {
 		...launch.env,
@@ -194,14 +199,16 @@ const runPlaywright = async (
 	};
 
 	console.log( `Using WordPress Playground port ${ playgroundPort }.` );
-	const cleanupRuntimeBlueprint = () =>
-		fs.rmSync(
-			path.join( os.tmpdir(), `kaigen-playground-${ playgroundPort }` ),
-			{ recursive: true, force: true }
-		);
+	const runtimeDirectory =
+		launch.env.PLAYWRIGHT_SKIP_WEBSERVER === '1'
+			? null
+			: fs.mkdtempSync( path.join( os.tmpdir(), 'kaigen-e2e-' ) );
+	if ( runtimeDirectory ) {
+		childEnv.PLAYGROUND_RUNTIME_DIRECTORY = runtimeDirectory;
+	}
 
 	try {
-		const child = spawn(
+		const child = spawnChild(
 			process.execPath,
 			[ playwrightCli, 'test', ...playwrightArgs ],
 			{
@@ -212,7 +219,9 @@ const runPlaywright = async (
 
 		return await waitForChild( child );
 	} finally {
-		cleanupRuntimeBlueprint();
+		if ( runtimeDirectory ) {
+			fs.rmSync( runtimeDirectory, { recursive: true, force: true } );
+		}
 	}
 };
 

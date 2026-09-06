@@ -311,6 +311,9 @@ describe( 'GenerateImageModal interactions', () => {
 		await user.click(
 			screen.getByRole( 'menuitemcheckbox', { name: 'Second' } )
 		);
+		expect(
+			screen.getByRole( 'menuitemcheckbox', { name: 'Second' } )
+		).toHaveAttribute( 'aria-checked', 'true' );
 		await user.click(
 			screen.getByRole( 'button', { name: 'Provider: Auto' } )
 		);
@@ -347,22 +350,17 @@ describe( 'GenerateImageModal interactions', () => {
 	} );
 
 	it( 'hides provider selection with only one real provider', async () => {
-		getKaiGenSettings.mockReturnValue( {
-			provider: 'auto',
-			orientation: 'square',
-			providers: [ { id: 'auto', name: 'Auto', referenceImageLimit: 5 } ],
+		await act( async () => {
+			render(
+				<GenerateImageModal
+					isOpen
+					onClose={ jest.fn() }
+					onSelect={ jest.fn() }
+				/>
+			);
 		} );
-		render(
-			<GenerateImageModal
-				isOpen
-				onClose={ jest.fn() }
-				onSelect={ jest.fn() }
-			/>
-		);
-		await waitFor( () => {
-			expect(
-				screen.queryByRole( 'button', { name: /^Provider:/ } )
-			).not.toBeInTheDocument();
-		} );
+		expect(
+			screen.queryByRole( 'button', { name: /^Provider:/ } )
+		).not.toBeInTheDocument();
 	} );
 } );

@@ -1,5 +1,6 @@
 const assert = require( 'node:assert/strict' );
 const fs = require( 'node:fs' );
+const { EventEmitter } = require( 'node:events' );
 const net = require( 'node:net' );
 const test = require( 'node:test' );
 const os = require( 'node:os' );
@@ -10,6 +11,7 @@ const {
 	resolvePlaygroundPort,
 	resolvePlaywrightLaunch,
 	resolvePlaywrightArgs,
+	runPlaywright,
 } = require( './run-e2e.js' );
 const {
 	applyRuntimeVersions,
@@ -218,6 +220,25 @@ test( 'resolvePlaywrightLaunch rejects unsafe artifact names', () => {
 	);
 } );
 
+test( 'resolvePlaywrightLaunch rejects missing option values', () => {
+	for ( const option of [
+		'--artifact-name',
+		'--playground-blueprint',
+		'--playground-workers',
+	] ) {
+		for ( const args of [
+			[ option ],
+			[ `${ option }=` ],
+			[ option, '--grep' ],
+		] ) {
+			assert.throws(
+				() => resolvePlaywrightLaunch( args, {} ),
+				/requires a value/
+			);
+		}
+	}
+} );
+
 test( 'resolvePlaywrightArgs defaults to the dedicated E2E config', () => {
 	const args = resolvePlaywrightArgs( [ '--project=chromium' ] );
 
@@ -253,14 +274,14 @@ test( 'runtime blueprints clean up independently', ( t ) => {
 		sourcePath,
 		'8.1',
 		'7.0',
-		'9417'
+		sourceDirectory
 	);
 	t.after( first.cleanup );
 	const second = materializePlaygroundBlueprint(
 		sourcePath,
 		'7.4',
 		'7.0',
-		'9418'
+		sourceDirectory
 	);
 	t.after( second.cleanup );
 	assert.notEqual( first.path, second.path );
@@ -270,4 +291,68 @@ test( 'runtime blueprints clean up independently', ( t ) => {
 	);
 	first.cleanup();
 	assert.equal( fs.existsSync( second.path ), true );
+} );
+
+test( 'attached server runs preserve the external runtime directory', async ( t ) => {
+	const externalDirectory = fs.mkdtempSync(
+		path.join( os.tmpdir(), 'kaigen-external-test-' )
+	);
+	t.after( () =>
+		fs.rmSync( externalDirectory, { recursive: true, force: true } )
+	);
+	const sentinel = path.join( externalDirectory, 'blueprint.json' );
+	fs.writeFileSync( sentinel, '{}' );
+	const removeDirectory = t.mock.method( fs, 'rmSync' );
+	const createDirectory = t.mock.method( fs, 'mkdtempSync' );
+	const result = await runPlaywright(
+		[],
+		{
+			PLAYGROUND_PORT: '9417',
+			PLAYWRIGHT_SKIP_WEBSERVER: '1',
+			PLAYGROUND_RUNTIME_DIRECTORY: externalDirectory,
+		},
+		{
+			resolveCli: () => 'playwright-cli',
+			spawnChild: ( command, args, { env } ) => {
+				assert.equal(
+					env.PLAYGROUND_RUNTIME_DIRECTORY,
+					externalDirectory
+				);
+				assert.deepEqual( fs.readdirSync( externalDirectory ), [
+					'blueprint.json',
+				] );
+				const child = new EventEmitter();
+				process.nextTick( () => child.emit( 'exit', 0, null ) );
+				return child;
+			},
+		}
+	);
+	assert.equal( result, 0 );
+	assert.equal( removeDirectory.mock.callCount(), 0 );
+	assert.equal( createDirectory.mock.callCount(), 0 );
+	assert.equal( fs.readFileSync( sentinel, 'utf8' ), '{}' );
+} );
+
+test( 'launcher removes its owned runtime directory after a child failure', async () => {
+	let runtimeDirectory;
+	const result = await runPlaywright(
+		[],
+		{ PLAYGROUND_PORT: '9417' },
+		{
+			resolveCli: () => 'playwright-cli',
+			spawnChild: ( command, args, { env } ) => {
+				runtimeDirectory = env.PLAYGROUND_RUNTIME_DIRECTORY;
+				assert.equal( fs.existsSync( runtimeDirectory ), true );
+				fs.writeFileSync(
+					path.join( runtimeDirectory, 'leftover.json' ),
+					'{}'
+				);
+				const child = new EventEmitter();
+				process.nextTick( () => child.emit( 'exit', 1, null ) );
+				return child;
+			},
+		}
+	);
+	assert.equal( result, 1 );
+	assert.equal( fs.existsSync( runtimeDirectory ), false );
 } );

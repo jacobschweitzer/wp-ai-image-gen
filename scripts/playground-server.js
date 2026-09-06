@@ -42,17 +42,13 @@ const materializePlaygroundBlueprint = (
 	blueprintPath,
 	phpVersion,
 	wordpressVersion,
-	runIdentifier
+	runtimeDirectory = os.tmpdir()
 ) => {
-	const normalizedIdentifier = String( normalizePort( runIdentifier ) );
 	const sourcePath = path.resolve( blueprintPath );
 	const blueprint = JSON.parse( fs.readFileSync( sourcePath, 'utf8' ) );
-	const temporaryDirectory = path.join(
-		os.tmpdir(),
-		`kaigen-playground-${ normalizedIdentifier }`
+	const temporaryDirectory = fs.mkdtempSync(
+		path.join( runtimeDirectory, 'kaigen-playground-' )
 	);
-	fs.rmSync( temporaryDirectory, { recursive: true, force: true } );
-	fs.mkdirSync( temporaryDirectory );
 	const runtimeBlueprintPath = path.join(
 		temporaryDirectory,
 		path.basename( sourcePath )
@@ -135,7 +131,7 @@ const startPlayground = async ( env = process.env ) => {
 		blueprint,
 		phpVersion,
 		wordpressVersion,
-		port
+		env.PLAYGROUND_RUNTIME_DIRECTORY
 	);
 	const args = buildPlaygroundServerArgs( {
 		port,

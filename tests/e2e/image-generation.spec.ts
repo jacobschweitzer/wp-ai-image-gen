@@ -822,16 +822,13 @@ test.describe( 'KaiGen Image Generation', () => {
 		expect( unmarkedFixture.id ).toBeGreaterThan( 0 );
 		expect( unmarkedFixture.url ).toContain( 'kaigen-reference-unmarked' );
 
-		await page.evaluate( async ( item ) => {
-			( window as any ).wp.data
-				.dispatch( 'core/block-editor' )
-				.insertBlock(
-					( window as any ).wp.blocks.createBlock( 'core/image', {
-						id: item.id,
-						url: item.url,
-					} )
-				);
-		}, unmarkedFixture );
+		await editor.insertBlock( {
+			name: 'core/image',
+			attributes: {
+				id: unmarkedFixture.id,
+				url: unmarkedFixture.url,
+			},
+		} );
 
 		const imageBlock = editor.canvas.locator( '[data-type="core/image"]' );
 		await expect( imageBlock ).toBeVisible( { timeout: 10000 } );

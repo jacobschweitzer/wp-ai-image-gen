@@ -80,12 +80,8 @@ console.log( `Running PHP coverage with ${ driver }.` );
 const result = spawnSync( command, commandArguments, {
 	cwd: repositoryRoot,
 	env: environment,
-	encoding: 'utf8',
-	stdio: [ 'inherit', 'pipe', 'pipe' ],
+	stdio: 'inherit',
 } );
-
-process.stdout.write( result.stdout || '' );
-process.stderr.write( result.stderr || '' );
 
 if ( result.error?.code === 'ENOENT' ) {
 	console.error(
