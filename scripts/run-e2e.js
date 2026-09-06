@@ -2,13 +2,22 @@
 /* eslint-disable no-console */
 
 const { spawn } = require( 'node:child_process' );
+const fs = require( 'node:fs' );
 const net = require( 'node:net' );
+const os = require( 'node:os' );
 const path = require( 'node:path' );
+
+const { waitForChild } = require( './child-process.js' );
 
 const DEFAULT_HOST = '127.0.0.1';
 const E2E_PACKAGE_DIR = path.resolve( __dirname, '../tests/e2e' );
 const E2E_CONFIG_PATH = path.join( E2E_PACKAGE_DIR, 'playwright.config.ts' );
 const MAX_SCAN_ATTEMPTS = 100;
+const PLAYGROUND_LAUNCH_OPTIONS = {
+	'--artifact-name': 'PLAYWRIGHT_ARTIFACT_NAME',
+	'--playground-blueprint': 'PLAYGROUND_BLUEPRINT',
+	'--playground-workers': 'PLAYGROUND_WORKERS',
+};
 
 const normalizePort = ( port ) => {
 	const normalizedPort = Number( port );
@@ -93,8 +102,7 @@ const findAvailablePort = async ( {
 
 const resolvePlaygroundPort = async ( env = process.env ) => {
 	if ( env.PLAYGROUND_PORT ) {
-		normalizePort( env.PLAYGROUND_PORT );
-		return env.PLAYGROUND_PORT;
+		return String( normalizePort( env.PLAYGROUND_PORT ) );
 	}
 
 	if ( env.PLAYWRIGHT_SKIP_WEBSERVER === '1' ) {
@@ -104,6 +112,50 @@ const resolvePlaygroundPort = async ( env = process.env ) => {
 	}
 
 	return String( await findAvailablePort() );
+};
+
+const resolvePlaywrightLaunch = (
+	args = process.argv.slice( 2 ),
+	env = process.env
+) => {
+	const launchArgs = [];
+	const launchEnv = { ...env };
+
+	for ( let index = 0; index < args.length; index++ ) {
+		const arg = args[ index ];
+		const separatorIndex = arg.indexOf( '=' );
+		const option =
+			separatorIndex === -1 ? arg : arg.slice( 0, separatorIndex );
+		const envKey = PLAYGROUND_LAUNCH_OPTIONS[ option ];
+
+		if ( envKey ) {
+			const value =
+				separatorIndex === -1
+					? args[ index + 1 ]
+					: arg.slice( separatorIndex + 1 );
+
+			if ( ! value || value.startsWith( '-' ) ) {
+				throw new Error( `${ option } requires a value.` );
+			}
+			if (
+				option === '--artifact-name' &&
+				! /^[a-z0-9-]+$/.test( value )
+			) {
+				throw new Error( `Invalid artifact name: ${ value }` );
+			}
+
+			launchEnv[ envKey ] = value;
+			index += separatorIndex === -1 ? 1 : 0;
+			continue;
+		}
+
+		launchArgs.push( arg );
+	}
+
+	return {
+		args: launchArgs,
+		env: launchEnv,
+	};
 };
 
 const resolvePlaywrightArgs = ( args ) => {
@@ -128,22 +180,35 @@ const resolvePlaywrightArgs = ( args ) => {
 
 const runPlaywright = async (
 	args = process.argv.slice( 2 ),
-	env = process.env
+	env = process.env,
+	{
+		spawnChild = spawn,
+		resolveCli = () =>
+			require.resolve( '@playwright/test/cli', {
+				paths: [ E2E_PACKAGE_DIR ],
+			} ),
+	} = {}
 ) => {
-	const playgroundPort = await resolvePlaygroundPort( env );
-	const playwrightCli = require.resolve( '@playwright/test/cli', {
-		paths: [ E2E_PACKAGE_DIR ],
-	} );
-	const playwrightArgs = resolvePlaywrightArgs( args );
+	const launch = resolvePlaywrightLaunch( args, env );
+	const playgroundPort = await resolvePlaygroundPort( launch.env );
+	const playwrightCli = resolveCli();
+	const playwrightArgs = resolvePlaywrightArgs( launch.args );
 	const childEnv = {
-		...env,
+		...launch.env,
 		PLAYGROUND_PORT: playgroundPort,
 	};
 
 	console.log( `Using WordPress Playground port ${ playgroundPort }.` );
+	const runtimeDirectory =
+		launch.env.PLAYWRIGHT_SKIP_WEBSERVER === '1'
+			? null
+			: fs.mkdtempSync( path.join( os.tmpdir(), 'kaigen-e2e-' ) );
+	if ( runtimeDirectory ) {
+		childEnv.PLAYGROUND_RUNTIME_DIRECTORY = runtimeDirectory;
+	}
 
-	return new Promise( ( resolve, reject ) => {
-		const child = spawn(
+	try {
+		const child = spawnChild(
 			process.execPath,
 			[ playwrightCli, 'test', ...playwrightArgs ],
 			{
@@ -152,18 +217,12 @@ const runPlaywright = async (
 			}
 		);
 
-		child.once( 'error', reject );
-		child.once( 'exit', ( code, signal ) => {
-			if ( signal ) {
-				reject(
-					new Error( `Playwright exited with signal ${ signal }.` )
-				);
-				return;
-			}
-
-			resolve( code || 0 );
-		} );
-	} );
+		return await waitForChild( child );
+	} finally {
+		if ( runtimeDirectory ) {
+			fs.rmSync( runtimeDirectory, { recursive: true, force: true } );
+		}
+	}
 };
 
 if ( require.main === module ) {
@@ -179,7 +238,9 @@ if ( require.main === module ) {
 
 module.exports = {
 	findAvailablePort,
+	normalizePort,
 	resolvePlaygroundPort,
+	resolvePlaywrightLaunch,
 	resolvePlaywrightArgs,
 	runPlaywright,
 };

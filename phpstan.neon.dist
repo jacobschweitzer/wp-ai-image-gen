@@ -1,0 +1,12 @@
+includes:
+	- vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+	level: 5
+	tmpDir: tests/test-results/phpstan
+	paths:
+		- kaigen.php
+		- inc
+	stubFiles:
+		- tests/phpstan/wordpress-ai-client.stub.php
+	treatPhpDocTypesAsCertain: false

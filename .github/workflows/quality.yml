@@ -1,0 +1,75 @@
+name: Mutation Quality
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  javascript-mutation:
+    name: JavaScript Mutation Tests
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci --no-audit --fund=false --prefer-offline
+
+      - name: Run targeted JavaScript mutation tests
+        run: npm run test:mutation:js
+
+  php-mutation:
+    name: Critical PHP Mutation Report
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer, infection:0.34.2
+          coverage: xdebug
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run scoped mutation report
+        run: |
+          mkdir -p tests/test-results
+          infection --configuration=infection.json5 --threads=1 --no-interaction --no-ansi
+        env:
+          XDEBUG_MODE: coverage
+
+      - name: Upload mutation reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: infection-reports
+          path: tests/test-results/infection*
+          if-no-files-found: error
+          retention-days: 14

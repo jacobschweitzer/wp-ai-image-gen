@@ -1,5 +1,6 @@
 /playwright-report/
 /blob-report/
+/coverage/
 /tests/test-results/
 /tests/e2e/test-results/
 /tests/e2e/__snapshots__/

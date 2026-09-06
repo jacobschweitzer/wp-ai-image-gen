@@ -1,0 +1,121 @@
+name: Runtime Compatibility
+
+on:
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: "17 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  minimum-runtime:
+    name: WordPress 7.0 / PHP 7.4
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/e2e/package-lock.json
+
+      - name: Install E2E dependencies
+        run: npm ci --prefix tests/e2e --no-audit --fund=false --prefer-offline
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('tests/e2e/package-lock.json') }}
+
+      - name: Install Chromium
+        run: npm exec --prefix tests/e2e -- playwright install chromium
+
+      - name: Run minimum-runtime editor smoke test
+        env:
+          PLAYGROUND_WP_VERSION: "7.0"
+          PLAYGROUND_PHP_VERSION: "7.4"
+        run: npm run test:e2e:smoke
+
+      - name: Run minimum-runtime AI Client contract test
+        env:
+          PLAYGROUND_WP_VERSION: "7.0"
+          PLAYGROUND_PHP_VERSION: "7.4"
+        run: npm run test:e2e:contract
+
+      - name: Upload minimum-runtime diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-minimum-${{ github.run_id }}
+          path: |
+            playwright-report/
+            tests/test-results/
+          if-no-files-found: ignore
+
+  rolling-runtime:
+    name: ${{ matrix.label }}
+    if: github.event_name != 'pull_request'
+    continue-on-error: ${{ matrix.experimental }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Latest WordPress / PHP 8.4
+            wordpress: latest
+            php: "8.4"
+            experimental: false
+          - label: WordPress Nightly / PHP 8.4
+            wordpress: nightly
+            php: "8.4"
+            experimental: true
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/e2e/package-lock.json
+
+      - name: Install E2E dependencies
+        run: npm ci --prefix tests/e2e --no-audit --fund=false --prefer-offline
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('tests/e2e/package-lock.json') }}
+
+      - name: Install Chromium
+        run: npm exec --prefix tests/e2e -- playwright install chromium
+
+      - name: Run rolling AI Client contract test
+        env:
+          PLAYGROUND_WP_VERSION: ${{ matrix.wordpress }}
+          PLAYGROUND_PHP_VERSION: ${{ matrix.php }}
+        run: npm run test:e2e:contract
+
+      - name: Upload rolling-runtime diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-${{ matrix.wordpress }}-${{ matrix.php }}-${{ github.run_id }}
+          path: |
+            playwright-report/
+            tests/test-results/
+          if-no-files-found: ignore

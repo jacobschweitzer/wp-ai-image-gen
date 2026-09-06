@@ -152,7 +152,7 @@ final class Rest_API {
 	 * Handles an image generation request through the WordPress AI Client.
 	 *
 	 * @param \WP_REST_Request $request The request object.
-	 * @return \WP_REST_Response|WP_Error The response or error.
+	 * @return \WP_REST_Response|\WP_Error The response or error.
 	 */
 	public function handle_generate_request( $request ) {
 		return $this->image_generation_service->generate_from_request( $request );

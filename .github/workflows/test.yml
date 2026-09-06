@@ -1,0 +1,73 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Unit Tests and Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          tools: composer
+          coverage: xdebug
+
+      - name: Install npm dependencies
+        run: npm ci --no-audit --fund=false --prefer-offline
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run infrastructure verification
+        run: npm run test:e2e:launcher && npm run test:build-parity && npm run test:php:coverage-threshold
+
+      - name: Run JavaScript unit tests with coverage
+        run: npm run test:coverage
+
+      - name: Run PHP unit tests with coverage
+        env:
+          XDEBUG_MODE: coverage
+        run: npm run test:php:coverage
+
+      - name: Run PHP static analysis
+        run: npm run test:php:static
+
+      - name: Enforce PHP complexity ceilings
+        run: npm run test:php:complexity
+
+      - name: Verify committed build assets
+        run: npm run build:check
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.run_id }}
+          path: |
+            coverage/
+            tests/test-results/php-coverage/
+            tests/test-results/php-coverage.xml
+          if-no-files-found: error
+          retention-days: 14

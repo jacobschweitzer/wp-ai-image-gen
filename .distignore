@@ -7,6 +7,9 @@
 /playwright
 /playwright-report
 /artifacts
+/tools
+/scripts
+/docs
 
 # Development files
 package.json
@@ -21,6 +24,11 @@ README.md
 # Build configuration files
 *.config.js
 *.config.ts
+infection.json5
+phpmd.xml
+phpstan.neon.dist
+phpunit.xml.dist
+stryker.config.json
 
 # Test files
 **/test-*
